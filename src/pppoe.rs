@@ -25,6 +25,14 @@ impl Pppoe {
     pub fn closed(&self) -> Closed<'_> {
         Closed { pppoe: self }
     }
+
+    pub fn state(&self) -> PppoeState {
+        self.state
+    }
+
+    pub fn set_state(&mut self, state: PppoeState) {
+        self.state = state;
+    }
 }
 
 impl Default for Pppoe {

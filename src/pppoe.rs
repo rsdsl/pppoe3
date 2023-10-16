@@ -1,6 +1,3 @@
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Instant;
 
 use ppproperly::MacAddr;
@@ -22,8 +19,8 @@ impl Pppoe {
         }
     }
 
-    pub fn closed(&self) -> Closed<'_> {
-        Closed { pppoe: self }
+    pub fn is_closed(&self) -> bool {
+        self.state() == PppoeState::Dead
     }
 
     pub fn state(&self) -> PppoeState {
@@ -46,21 +43,4 @@ pub enum PppoeState {
     Dead,    // No session, no offers. The client may choose whether to send PADIs.
     Request, // No session, trying to request an offer. The client must send PADRs or time out.
     Active,  // PPP session established. Can be terminated by a remote PADT or upper layers.
-}
-
-#[derive(Debug)]
-pub struct Closed<'a> {
-    pppoe: &'a Pppoe,
-}
-
-impl<'a> Future for Closed<'a> {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Closed<'a>>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if self.pppoe.state == PppoeState::Dead {
-            Poll::Ready(())
-        } else {
-            Poll::Pending
-        }
-    }
 }

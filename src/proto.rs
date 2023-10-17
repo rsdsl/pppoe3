@@ -100,9 +100,7 @@ impl<O: Option> Negotiator<O> {
             input_rx,
         };
 
-        let processor = async move { proto.process().await };
-
-        (negotiator, processor)
+        (negotiator, proto.process())
     }
 
     /// Waits for and returns the next packet to send.

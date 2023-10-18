@@ -46,8 +46,10 @@ pub trait Option: Eq + Serialize + DeserializeOwned {}
 pub struct NegotiationProtocol<O: Option> {
     require: Vec<O>,
     deny: Vec<O>,
+    deny_exact: Vec<O>,
     request: Vec<O>, // mutated during negotiation
     refuse: Vec<O>,
+    refuse_exact: Vec<O>,
 
     peer: Vec<O>,
 
@@ -68,14 +70,23 @@ impl<O: Option> NegotiationProtocol<O> {
     /// * `refuse_exact` - Options not to accept the listed suggestion values for
     ///
     /// The resulting `processor` **must** be spawned before using the `Negotiator`.
-    pub fn new(require: Vec<O>, deny: Vec<O>, request: Vec<O>, refuse: Vec<O>) -> Self {
+    pub fn new(
+        require: Vec<O>,
+        deny: Vec<O>,
+        deny_exact: Vec<O>,
+        request: Vec<O>,
+        refuse: Vec<O>,
+        refuse_exact: Vec<O>,
+    ) -> Self {
         let (output_tx, output_rx) = mpsc::unbounded_channel();
 
         Self {
             require,
             deny,
+            deny_exact,
             request,
             refuse,
+            refuse_exact,
 
             peer: Vec::default(),
 

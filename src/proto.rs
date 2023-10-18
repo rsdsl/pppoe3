@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use tokio::sync::mpsc;
 
 use serde::{de::DeserializeOwned, Serialize};
@@ -46,21 +44,17 @@ pub trait Option: Eq + Serialize + DeserializeOwned {}
 /// as per RFC 1661 section 4. Used to manage individual protocols.
 #[derive(Debug)]
 pub struct Negotiator<O: Option> {
-    output_rx: mpsc::UnboundedReceiver<Packet<O>>,
-    input_tx: mpsc::UnboundedSender<Packet<O>>,
-}
-
-#[derive(Debug)]
-struct Proto<O: Option> {
     require: Vec<O>,
     deny: Vec<O>,
-    request: Vec<O>,
+    request: Vec<O>, // mutated during negotiation
     refuse: Vec<O>,
+
+    peer: Vec<O>,
 
     state: ProtoState,
 
     output_tx: mpsc::UnboundedSender<Packet<O>>,
-    input_rx: mpsc::UnboundedReceiver<Packet<O>>,
+    output_rx: mpsc::UnboundedReceiver<Packet<O>>,
 }
 
 impl<O: Option> Negotiator<O> {
@@ -74,51 +68,37 @@ impl<O: Option> Negotiator<O> {
     /// * `refuse_exact` - Options not to accept the listed suggestion values for
     ///
     /// The resulting `processor` **must** be spawned before using the `Negotiator`.
-    pub fn new(
-        require: Vec<O>,
-        deny: Vec<O>,
-        request: Vec<O>,
-        refuse: Vec<O>,
-    ) -> (Self, impl Future) {
+    pub fn new(require: Vec<O>, deny: Vec<O>, request: Vec<O>, refuse: Vec<O>) -> Self {
         let (output_tx, output_rx) = mpsc::unbounded_channel();
-        let (input_tx, input_rx) = mpsc::unbounded_channel();
 
-        let negotiator = Self {
-            output_rx,
-            input_tx,
-        };
-
-        let proto = Proto {
+        Self {
             require,
             deny,
             request,
             refuse,
 
+            peer: Vec::default(),
+
             state: ProtoState::default(),
 
             output_tx,
-            input_rx,
-        };
-
-        (negotiator, proto.process())
+            output_rx,
+        }
     }
 
     /// Waits for and returns the next packet to send.
     pub async fn to_send(&mut self) -> Packet<O> {
-        self.output_rx
-            .recv()
-            .await
-            .expect("output channel is closed")
+        // TODO:
+        // select!:
+        // Pass on packets from channel populated by from_recv.
+        // Watch timers and counters (part of the state enum to reset on transition).
+        // Mutate state if necessary.
     }
 
     /// Feeds a packet into the state machine for processing.
-    pub fn from_recv(&self, packet: Packet<O>) {
-        self.input_tx.send(packet).expect("input channel is closed")
-    }
-}
-
-impl<O: Option> Proto<O> {
-    async fn process(self) {
-        loop {}
+    pub fn from_recv(&mut self, packet: Packet<O>) {
+        // TODO:
+        // Process packet and construct outbound packet if necessary.
+        // Mutate requested options as needed.
     }
 }

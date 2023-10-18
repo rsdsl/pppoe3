@@ -4,7 +4,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 /// A protocol state as described in RFC 1661 section 4.2.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub enum ProtoState {
+pub enum ProtocolState {
     #[default]
     Initial, // Lower layer down, no Open has occured, no restart timer
     Starting,    // Lower layer down, Open initiated, no restart timer; Up triggers Cfg-Req
@@ -40,10 +40,10 @@ pub struct Packet<O: Option> {
 /// A generic PPP option.
 pub trait Option: Eq + Serialize + DeserializeOwned {}
 
-/// A state machine that implements the PPP Option Negotiation mechanism
+/// A sub-protocol that implements the PPP Option Negotiation mechanism
 /// as per RFC 1661 section 4. Used to manage individual protocols.
 #[derive(Debug)]
-pub struct Negotiator<O: Option> {
+pub struct NegotiationProtocol<O: Option> {
     require: Vec<O>,
     deny: Vec<O>,
     request: Vec<O>, // mutated during negotiation
@@ -51,14 +51,14 @@ pub struct Negotiator<O: Option> {
 
     peer: Vec<O>,
 
-    state: ProtoState,
+    state: ProtocolState,
 
     output_tx: mpsc::UnboundedSender<Packet<O>>,
     output_rx: mpsc::UnboundedReceiver<Packet<O>>,
 }
 
-impl<O: Option> Negotiator<O> {
-    /// Creates a new `Negotiator` with the following characteristics:
+impl<O: Option> NegotiationProtocol<O> {
+    /// Creates a new `NegotiationProtocol` with the following characteristics:
     ///
     /// * `require` - Options to require the peer to set including a suggestion
     /// * `deny` - Options not to accept under any circumstances
@@ -79,7 +79,7 @@ impl<O: Option> Negotiator<O> {
 
             peer: Vec::default(),
 
-            state: ProtoState::default(),
+            state: ProtocolState::default(),
 
             output_tx,
             output_rx,

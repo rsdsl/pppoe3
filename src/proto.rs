@@ -71,12 +71,12 @@ pub struct NegotiationProtocol<O: Option> {
 impl<O: Option> NegotiationProtocol<O> {
     /// Creates a new `NegotiationProtocol` with the following characteristics:
     ///
-    /// * `require` - Options to require the peer to set including a suggestion
-    /// * `deny` - Options not to accept under any circumstances
-    /// * `deny_exact` - Options not to accept if they have a listed value
-    /// * `request` - Options to request initially
-    /// * `refuse` - Options not to accept suggestions for under any circumstances
-    /// * `refuse_exact` - Options not to accept the listed suggestion values for
+    /// * `require` - Options to require the peer to set including a suggestion.
+    /// * `deny` - Options not to accept under any circumstances.
+    /// * `deny_exact` - Options not to accept if they have a listed value.
+    /// * `request` - Options to request initially.
+    /// * `refuse` - Options not to accept suggestions for under any circumstances.
+    /// * `refuse_exact` - Options not to accept the listed suggestion values for.
     ///
     /// * `restart_interval` - The retransmission interval (Restart Timer), default is 3 seconds.
     /// * `max_terminate` - The maximum number of Term-Reqs to send, default is 2.

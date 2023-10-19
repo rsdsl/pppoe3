@@ -107,6 +107,7 @@ impl<O: Option> NegotiationProtocol<O> {
     }
 
     /// Feeds a packet into the state machine for processing.
+    /// Can trigger the RCR+, RCR-, RCA, RCN, RTR, RTA or RUC events.
     pub fn from_recv(&mut self, packet: Packet<O>) {
         // TODO:
         // Process packet and construct outbound packet if necessary.

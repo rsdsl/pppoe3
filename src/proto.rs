@@ -121,4 +121,8 @@ impl<O: Option> NegotiationProtocol<O> {
     /// Signals to the state machine that the lower layer is now down.
     /// This is equivalent to the Down event.
     pub fn down(&mut self) {}
+
+    /// Issues an administrative open, allowing the protocol to start negotiation.
+    /// This is equivalent to the Open event.
+    pub fn open(&mut self) {}
 }

@@ -35,18 +35,18 @@ pub enum PacketType {
 /// A packet that can be a Configure-Request, Configure-Ack, Configure-Nak,
 /// Configure-Reject, Terminate-Request or Terminate-Ack.
 #[derive(Debug)]
-pub struct Packet<O: Option> {
+pub struct Packet<O: ProtocolOption> {
     pub ty: PacketType,
     pub options: Vec<O>,
 }
 
 /// A generic PPP option.
-pub trait Option: Eq + Serialize + DeserializeOwned {}
+pub trait ProtocolOption: Eq + Serialize + DeserializeOwned {}
 
 /// A sub-protocol that implements the PPP Option Negotiation mechanism
 /// as per RFC 1661 section 4. Used to manage individual protocols.
 #[derive(Debug)]
-pub struct NegotiationProtocol<O: Option> {
+pub struct NegotiationProtocol<O: ProtocolOption> {
     require: Vec<O>,
     deny: Vec<O>,
     deny_exact: Vec<O>,
@@ -68,7 +68,7 @@ pub struct NegotiationProtocol<O: Option> {
     output_rx: mpsc::UnboundedReceiver<Packet<O>>,
 }
 
-impl<O: Option> NegotiationProtocol<O> {
+impl<O: ProtocolOption> NegotiationProtocol<O> {
     /// Creates a new `NegotiationProtocol` with the following characteristics:
     ///
     /// * `require` - Options to require the peer to set including a suggestion.

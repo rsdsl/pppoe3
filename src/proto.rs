@@ -113,4 +113,8 @@ impl<O: Option> NegotiationProtocol<O> {
         // Process packet and construct outbound packet if necessary.
         // Mutate requested options as needed.
     }
+
+    /// Signals to the state machine that the lower layer is now up.
+    /// This is equivalent to the Up event.
+    pub fn up(&mut self) {}
 }

@@ -125,4 +125,8 @@ impl<O: Option> NegotiationProtocol<O> {
     /// Issues an administrative open, allowing the protocol to start negotiation.
     /// This is equivalent to the Open event.
     pub fn open(&mut self) {}
+
+    /// Issues an administrative close, gracefully shutting down the protocol.
+    /// This is equivalent to the Close event.
+    pub fn close(&mut self) {}
 }

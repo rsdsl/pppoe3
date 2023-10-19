@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use tokio::sync::mpsc;
+use tokio::time::Interval;
 
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -55,6 +58,12 @@ pub struct NegotiationProtocol<O: Option> {
 
     state: ProtocolState,
 
+    restart_timer: Interval,
+
+    max_terminate: u32,
+    max_configure: u32,
+    max_failure: u32,
+
     output_tx: mpsc::UnboundedSender<Packet<O>>,
     output_rx: mpsc::UnboundedReceiver<Packet<O>>,
 }
@@ -69,6 +78,11 @@ impl<O: Option> NegotiationProtocol<O> {
     /// * `refuse` - Options not to accept suggestions for under any circumstances
     /// * `refuse_exact` - Options not to accept the listed suggestion values for
     ///
+    /// * `restart_interval` - The retransmission interval (Restart Timer), default is 3 seconds.
+    /// * `max_terminate` - The maximum number of Term-Reqs to send, default is 2.
+    /// * `max_configure` - The maximum number of Configure-Reqs to send, default is 10.
+    /// * `max_failure` - The maximum number of Cfg-Naks sent before rejecting, default is 5.
+    ///
     /// The resulting `processor` **must** be spawned before using the `Negotiator`.
     pub fn new(
         require: Vec<O>,
@@ -77,7 +91,13 @@ impl<O: Option> NegotiationProtocol<O> {
         request: Vec<O>,
         refuse: Vec<O>,
         refuse_exact: Vec<O>,
+        restart_interval: Option<Duration>,
+        max_terminate: Option<u32>,
+        max_configure: Option<u32>,
+        max_failure: Option<u32>,
     ) -> Self {
+        let restart_timer =
+            tokio::time::interval(restart_interval.unwrap_or(Duration::from_secs(3)));
         let (output_tx, output_rx) = mpsc::unbounded_channel();
 
         Self {
@@ -92,6 +112,12 @@ impl<O: Option> NegotiationProtocol<O> {
 
             state: ProtocolState::default(),
 
+            restart_timer, // needs to be reset by some events
+
+            max_terminate: max_terminate.unwrap_or(2),
+            max_configure: max_configure.unwrap_or(10),
+            max_failure: max_failure.unwrap_or(5),
+
             output_tx,
             output_rx,
         }
@@ -102,7 +128,7 @@ impl<O: Option> NegotiationProtocol<O> {
         // TODO:
         // select!:
         // Pass on packets from channel populated by from_recv.
-        // Watch timers and counters (part of the state enum to reset on transition).
+        // Watch timers and counters.
         // Mutate state if necessary.
     }
 

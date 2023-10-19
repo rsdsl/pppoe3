@@ -117,4 +117,8 @@ impl<O: Option> NegotiationProtocol<O> {
     /// Signals to the state machine that the lower layer is now up.
     /// This is equivalent to the Up event.
     pub fn up(&mut self) {}
+
+    /// Signals to the state machine that the lower layer is now down.
+    /// This is equivalent to the Down event.
+    pub fn down(&mut self) {}
 }

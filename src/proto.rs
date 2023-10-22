@@ -152,10 +152,6 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     /// Feeds a packet into the state machine for processing.
     /// Can trigger the RCR+, RCR-, RCA, RCN, RTR, RTA or RUC events.
     pub fn from_recv(&mut self, packet: Packet<O>) {
-        // TODO:
-        // Process packet and construct outbound packet if necessary.
-        // Mutate requested options as needed.
-
         match packet.ty {
             PacketType::ConfigureRequest => {
                 if self.is_acceptable(&packet.options) {
@@ -292,7 +288,92 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
-    fn rcr_positive(&mut self, packet: Packet<O>) {}
+    fn rcr_positive(&mut self, packet: Packet<O>) {
+        match self.state {
+            ProtocolState::Closed => {
+                self.output_tx.send(Packet {
+                    ty: PacketType::TerminateAck,
+                    options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+            }
+            ProtocolState::Stopped => {
+                self.restart_timer.reset();
+                self.restart_counter = self.max_configure;
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureAck,
+                    options: packet.options,
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::AckSent;
+            }
+            ProtocolState::RequestSent => {
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureAck,
+                    options: packet.options,
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::AckSent;
+            }
+            ProtocolState::AckReceived => {
+                // tlu action
+                // TODO: Inform upper layers via a channel.
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureAck,
+                    options: packet.options,
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::Opened;
+            }
+            ProtocolState::AckSent => self
+                .output_tx
+                .send(Packet {
+                    ty: PacketType::ConfigureAck,
+                    options: packet.options,
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                })
+                .expect("output channel is closed"),
+            ProtocolState::Opened => {
+                // tld action
+                // TODO: Inform upper layers via a channel.
+
+                self.restart_timer.reset();
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureAck,
+                    options: packet.options,
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::AckSent;
+            }
+        }
+    }
 
     fn rcr_negative(&mut self, packet: Packet<O>) {}
 

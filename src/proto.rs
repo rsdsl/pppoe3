@@ -148,7 +148,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     /// Signals to the state machine that the lower layer is now up.
     /// This is equivalent to the Up event.
-    pub fn up(&mut self) {}
+    pub fn up(&mut self) {
+        match self.state {
+            ProtocolState::Initial => self.state = ProtocolState::Closed,
+            ProtocolState::Starting => {
+                self.state = ProtocolState::RequestSent;
+            }
+        }
+    }
 
     /// Signals to the state machine that the lower layer is now down.
     /// This is equivalent to the Down event.

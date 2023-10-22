@@ -713,7 +713,57 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
-    fn rca(&mut self, packet: Packet<O>) {}
+    fn rca(&mut self, packet: Packet<O>) {
+        match self.state {
+            ProtocolState::Closed | ProtocolState::Stopped => self
+                .output_tx
+                .send(Packet {
+                    ty: PacketType::TerminateAck,
+                    options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                })
+                .expect("output channel is closed"),
+            ProtocolState::RequestSent => {
+                self.restart_counter = self.max_failure;
+                self.state = ProtocolState::AckReceived;
+            }
+            ProtocolState::AckReceived => {
+                self.restart_timer.reset();
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::RequestSent;
+            }
+            ProtocolState::AckSent => {
+                // tlu action
+                // TODO: Inform upper layers via a channel.
+
+                self.restart_counter = self.max_configure;
+                self.state = ProtocolState::Opened;
+            }
+            ProtocolState::Opened => {
+                // tld action
+                // TODO: Inform upper layers via a channel.
+
+                self.restart_timer.reset();
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::RequestSent;
+            }
+        }
+    }
 
     fn rcn(&mut self, packet: Packet<O>) {}
 

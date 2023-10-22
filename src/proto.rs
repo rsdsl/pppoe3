@@ -186,6 +186,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             PacketType::EchoRequest => {
                 // TODO: Queue Echo-Reply transmission.
             }
+            PacketType::EchoReply | PacketType::DiscardRequest => {}
         }
     }
 
@@ -208,6 +209,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
                 self.state = ProtocolState::RequestSent;
             }
+            ProtocolState::Closed
+            | ProtocolState::Stopped
+            | ProtocolState::Closing
+            | ProtocolState::Stopping
+            | ProtocolState::RequestSent
+            | ProtocolState::AckReceived
+            | ProtocolState::AckSent
+            | ProtocolState::Opened => {} // illegal
         }
     }
 
@@ -215,6 +224,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     /// This is equivalent to the Down event.
     pub fn down(&mut self) {
         match self.state {
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed => self.state = ProtocolState::Initial,
             ProtocolState::Stopped => self.state = ProtocolState::Starting, // tls action
             ProtocolState::Closing => self.state = ProtocolState::Initial,
@@ -233,6 +243,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         // The [r] (restart) implementation option is not implemented.
         match self.state {
             ProtocolState::Initial => self.state = ProtocolState::Starting, // tls action
+            ProtocolState::Starting => {}
             ProtocolState::Closed => {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_configure;
@@ -247,7 +258,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
                 self.state = ProtocolState::RequestSent;
             }
+            ProtocolState::Stopped => {}
             ProtocolState::Closing => self.state = ProtocolState::Stopping,
+            ProtocolState::Stopping
+            | ProtocolState::RequestSent
+            | ProtocolState::AckReceived
+            | ProtocolState::AckSent
+            | ProtocolState::Opened => {}
         }
     }
 
@@ -255,8 +272,11 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     /// This is equivalent to the Close event.
     pub fn close(&mut self) {
         match self.state {
+            ProtocolState::Initial => {}
             ProtocolState::Starting => self.state = ProtocolState::Initial, // tlf action
+            ProtocolState::Closed => {}
             ProtocolState::Stopped => self.state = ProtocolState::Closed,
+            ProtocolState::Closing => {}
             ProtocolState::Stopping => self.state = ProtocolState::Closing,
             ProtocolState::RequestSent | ProtocolState::AckReceived | ProtocolState::AckSent => {
                 self.restart_timer.reset();
@@ -294,6 +314,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rcr_positive(&mut self, packet: Packet<O>) {
         match self.state {
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed => self
                 .output_tx
                 .send(Packet {
@@ -324,6 +345,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
                 self.state = ProtocolState::AckSent;
             }
+            ProtocolState::Closing | ProtocolState::Stopping => {}
             ProtocolState::RequestSent => {
                 self.output_tx.send(Packet {
                     ty: PacketType::ConfigureAck,
@@ -384,6 +406,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rcr_negative(&mut self, packet: Packet<O>) {
         match self.state {
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed => self
                 .output_tx
                 .send(Packet {
@@ -422,7 +445,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .iter()
                     .cloned()
                     .filter_map(|(denied, suggest)| {
-                        if packet.options.iter().any(|&option| option == denied) {
+                        if packet.options.iter().any(|option| *option == denied) {
                             Some(suggest)
                         } else {
                             None
@@ -465,6 +488,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
                 self.state = ProtocolState::RequestSent;
             }
+            ProtocolState::Closing | ProtocolState::Stopping => {}
             ProtocolState::RequestSent => {
                 let nak_require: Vec<O> = self
                     .require
@@ -483,7 +507,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .iter()
                     .cloned()
                     .filter_map(|(denied, suggest)| {
-                        if packet.options.iter().any(|&option| option == denied) {
+                        if packet.options.iter().any(|option| *option == denied) {
                             Some(suggest)
                         } else {
                             None
@@ -542,7 +566,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .iter()
                     .cloned()
                     .filter_map(|(denied, suggest)| {
-                        if packet.options.iter().any(|&option| option == denied) {
+                        if packet.options.iter().any(|option| *option == denied) {
                             Some(suggest)
                         } else {
                             None
@@ -601,7 +625,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .iter()
                     .cloned()
                     .filter_map(|(denied, suggest)| {
-                        if packet.options.iter().any(|&option| option == denied) {
+                        if packet.options.iter().any(|option| *option == denied) {
                             Some(suggest)
                         } else {
                             None
@@ -675,7 +699,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .iter()
                     .cloned()
                     .filter_map(|(denied, suggest)| {
-                        if packet.options.iter().any(|&option| option == denied) {
+                        if packet.options.iter().any(|option| *option == denied) {
                             Some(suggest)
                         } else {
                             None
@@ -723,6 +747,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rca(&mut self, packet: Packet<O>) {
         match self.state {
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed | ProtocolState::Stopped => self
                 .output_tx
                 .send(Packet {
@@ -732,6 +757,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     rejected_protocol: 0,
                 })
                 .expect("output channel is closed"),
+            ProtocolState::Closing | ProtocolState::Stopping => {}
             ProtocolState::RequestSent => {
                 self.restart_counter = self.max_configure;
                 self.state = ProtocolState::AckReceived;
@@ -777,6 +803,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rcn(&mut self, packet: Packet<O>) {
         match self.state {
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed | ProtocolState::Stopped => self
                 .output_tx
                 .send(Packet {
@@ -786,30 +813,23 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     rejected_protocol: 0,
                 })
                 .expect("output channel is closed"),
+            ProtocolState::Closing | ProtocolState::Stopping => {}
             ProtocolState::RequestSent => {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_configure;
 
-                let accepted_naks = packet.options.iter().filter(|&option| {
+                let mut accepted_naks = packet.options.iter().filter(|&option| {
                     !self
                         .refuse
                         .iter()
                         .any(|refused| refused.has_same_type(option))
-                        && !self.refuse_exact.iter().any(|&refused| refused == *option)
+                        && !self.refuse_exact.iter().any(|refused| *refused == *option)
                 });
 
-                let to_modify = self.request.iter_mut().filter_map(|option| {
-                    accepted_naks.find_map(|nak| {
-                        if nak.has_same_type(option) {
-                            Some((option, nak))
-                        } else {
-                            None
-                        }
-                    })
-                });
-
-                for (option, nak) in to_modify {
-                    *option = nak.clone();
+                for option in self.request.iter_mut() {
+                    if let Some(nak) = accepted_naks.find(|nak| nak.has_same_type(option)) {
+                        *option = nak.clone();
+                    }
                 }
 
                 self.output_tx.send(Packet {
@@ -822,26 +842,18 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             ProtocolState::AckReceived => {
                 self.restart_timer.reset();
 
-                let accepted_naks = packet.options.iter().filter(|&option| {
+                let mut accepted_naks = packet.options.iter().filter(|&option| {
                     !self
                         .refuse
                         .iter()
                         .any(|refused| refused.has_same_type(option))
-                        && !self.refuse_exact.iter().any(|&refused| refused == *option)
+                        && !self.refuse_exact.iter().any(|refused| *refused == *option)
                 });
 
-                let to_modify = self.request.iter_mut().filter_map(|option| {
-                    accepted_naks.find_map(|nak| {
-                        if nak.has_same_type(option) {
-                            Some((option, nak))
-                        } else {
-                            None
-                        }
-                    })
-                });
-
-                for (option, nak) in to_modify {
-                    *option = nak.clone();
+                for option in self.request.iter_mut() {
+                    if let Some(nak) = accepted_naks.find(|nak| nak.has_same_type(option)) {
+                        *option = nak.clone();
+                    }
                 }
 
                 self.output_tx.send(Packet {
@@ -857,26 +869,18 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_configure;
 
-                let accepted_naks = packet.options.iter().filter(|&option| {
+                let mut accepted_naks = packet.options.iter().filter(|&option| {
                     !self
                         .refuse
                         .iter()
                         .any(|refused| refused.has_same_type(option))
-                        && !self.refuse_exact.iter().any(|&refused| refused == *option)
+                        && !self.refuse_exact.iter().any(|refused| *refused == *option)
                 });
 
-                let to_modify = self.request.iter_mut().filter_map(|option| {
-                    accepted_naks.find_map(|nak| {
-                        if nak.has_same_type(option) {
-                            Some((option, nak))
-                        } else {
-                            None
-                        }
-                    })
-                });
-
-                for (option, nak) in to_modify {
-                    *option = nak.clone();
+                for option in self.request.iter_mut() {
+                    if let Some(nak) = accepted_naks.find(|nak| nak.has_same_type(option)) {
+                        *option = nak.clone();
+                    }
                 }
 
                 self.output_tx.send(Packet {
@@ -892,26 +896,18 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
                 self.restart_timer.reset();
 
-                let accepted_naks = packet.options.iter().filter(|&option| {
+                let mut accepted_naks = packet.options.iter().filter(|&option| {
                     !self
                         .refuse
                         .iter()
                         .any(|refused| refused.has_same_type(option))
-                        && !self.refuse_exact.iter().any(|&refused| refused == *option)
+                        && !self.refuse_exact.iter().any(|refused| *refused == *option)
                 });
 
-                let to_modify = self.request.iter_mut().filter_map(|option| {
-                    accepted_naks.find_map(|nak| {
-                        if nak.has_same_type(option) {
-                            Some((option, nak))
-                        } else {
-                            None
-                        }
-                    })
-                });
-
-                for (option, nak) in to_modify {
-                    *option = nak.clone();
+                for option in self.request.iter_mut() {
+                    if let Some(nak) = accepted_naks.find(|nak| nak.has_same_type(option)) {
+                        *option = nak.clone();
+                    }
                 }
 
                 self.output_tx.send(Packet {
@@ -928,6 +924,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rtr(&mut self, packet: Packet<O>) {
         match self.state {
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed
             | ProtocolState::Stopped
             | ProtocolState::Closing
@@ -971,9 +968,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rta(&mut self, packet: Packet<O>) {
         match self.state {
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
+            ProtocolState::Closed | ProtocolState::Stopped => {}
             ProtocolState::Closing => self.state = ProtocolState::Closed, // tlf action
             ProtocolState::Stopping => self.state = ProtocolState::Stopped, // tlf action
+            ProtocolState::RequestSent => {}
             ProtocolState::AckReceived => self.state = ProtocolState::RequestSent,
+            ProtocolState::AckSent => {}
             ProtocolState::Opened => {
                 // tld action
                 // TODO: Inform upper layers via a channel.
@@ -1009,7 +1010,8 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rxj_negative(&mut self, packet: Packet<O>) {
         match self.state {
-            ProtocolState::Closed | ProtocolState::Stopped => {} // tlf action
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
+            ProtocolState::Closed | ProtocolState::Stopped => {}   // tlf action
             ProtocolState::Closing => self.state = ProtocolState::Closed, // tlf action
             ProtocolState::Stopping
             | ProtocolState::RequestSent
@@ -1050,7 +1052,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         let deny_exact_satisfied = self
             .deny_exact
             .iter()
-            .all(|(denied, _)| !options.iter().any(|&option| option == *denied));
+            .all(|(denied, _)| !options.iter().any(|option| *option == *denied));
 
         require_satisfied && deny_satisfied && deny_exact_satisfied
     }

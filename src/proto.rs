@@ -198,5 +198,34 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     /// Issues an administrative close, gracefully shutting down the protocol.
     /// This is equivalent to the Close event.
-    pub fn close(&mut self) {}
+    pub fn close(&mut self) {
+        match self.state {
+            ProtocolState::Starting => self.state = ProtocolState::Initial, // tlf action
+            ProtocolState::Stopped => self.state = ProtocolState::Closed,
+            ProtocolState::Stopping => self.state = ProtocolState::Closing,
+            ProtocolState::RequestSent | ProtocolState::AckReceived | ProtocolState::AckSent => {
+                self.restart_counter = self.max_terminate;
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::TerminateRequest,
+                    options: Vec::default(),
+                });
+
+                self.state = ProtocolState::Closing;
+            }
+            ProtocolState::Opened => {
+                // tld action
+                // TODO: Inform upper layers via a channel.
+
+                self.restart_counter = self.max_terminate;
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::TerminateRequest,
+                    options: Vec::default(),
+                });
+
+                self.state = ProtocolState::Closing;
+            }
+        }
+    }
 }

@@ -59,7 +59,7 @@ pub trait ProtocolOption: Clone + Eq + Serialize + DeserializeOwned {
 pub struct NegotiationProtocol<O: ProtocolOption> {
     require: Vec<O>,
     deny: Vec<O>,
-    deny_exact: Vec<O>,
+    deny_exact: Vec<(O, O)>,
     request: Vec<O>, // mutated during negotiation
     refuse: Vec<O>,
     refuse_exact: Vec<O>,
@@ -86,7 +86,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     ///
     /// * `require` - Options to require the peer to set including a suggestion.
     /// * `deny` - Options not to accept under any circumstances.
-    /// * `deny_exact` - Options not to accept if they have a listed value.
+    /// * `deny_exact` - Options not to accept if they have a listed value including a suggestion.
     /// * `request` - Options to request initially.
     /// * `refuse` - Options not to accept suggestions for under any circumstances.
     /// * `refuse_exact` - Options not to accept the listed suggestion values for.
@@ -100,7 +100,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     pub fn new(
         require: Vec<O>,
         deny: Vec<O>,
-        deny_exact: Vec<O>,
+        deny_exact: Vec<(O, O)>,
         request: Vec<O>,
         refuse: Vec<O>,
         refuse_exact: Vec<O>,
@@ -376,7 +376,66 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
-    fn rcr_negative(&mut self, packet: Packet<O>) {}
+    fn rcr_negative(&mut self, packet: Packet<O>) {
+        match self.state {
+            ProtocolState::Closed => self
+                .output_tx
+                .send(Packet {
+                    ty: PacketType::TerminateAck,
+                    options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                })
+                .expect("output channel is closed"),
+            ProtocolState::Stopped => {
+                self.restart_timer.reset();
+                self.restart_counter = self.max_configure;
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                let nak_require = self
+                    .require
+                    .iter()
+                    .filter(|required| {
+                        !packet
+                            .options
+                            .iter()
+                            .any(|option| option.has_same_type(required))
+                    })
+                    .collect();
+
+                let nak_deny_exact = self
+                    .deny_exact
+                    .iter()
+                    .filter_map(|(denied, suggest)| {
+                        if packet.options.iter().any(|&option| option == *denied) {
+                            Some(suggest)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                let reject_deny = self
+                    .deny
+                    .iter()
+                    .filter(|denied| {
+                        packet
+                            .options
+                            .iter()
+                            .any(|option| option.has_same_type(denied))
+                    })
+                    .collect();
+
+                self.state = ProtocolState::RequestSent;
+            }
+        }
+    }
 
     fn rca(&mut self, packet: Packet<O>) {}
 
@@ -408,7 +467,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         let deny_exact_satisfied = self
             .deny_exact
             .iter()
-            .any(|&denied| options.iter().any(|&option| option == denied));
+            .any(|(denied, _)| options.iter().any(|&option| option == *denied));
 
         require_satisfied && deny_satisfied && deny_exact_satisfied
     }

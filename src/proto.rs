@@ -178,7 +178,23 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     /// Issues an administrative open, allowing the protocol to start negotiation.
     /// This is equivalent to the Open event.
-    pub fn open(&mut self) {}
+    pub fn open(&mut self) {
+        // The [r] (restart) implementation option is not implemented.
+        match self.state {
+            ProtocolState::Initial => self.state = ProtocolState::Starting, // tls action
+            ProtocolState::Closed => {
+                self.restart_counter = self.max_configure;
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                });
+
+                self.state = ProtocolState::RequestSent;
+            }
+            ProtocolState::Closing => self.state = ProtocolState::Stopping,
+        }
+    }
 
     /// Issues an administrative close, gracefully shutting down the protocol.
     /// This is equivalent to the Close event.

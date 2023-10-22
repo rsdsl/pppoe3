@@ -729,7 +729,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 })
                 .expect("output channel is closed"),
             ProtocolState::RequestSent => {
-                self.restart_counter = self.max_failure;
+                self.restart_counter = self.max_configure;
                 self.state = ProtocolState::AckReceived;
             }
             ProtocolState::AckReceived => {

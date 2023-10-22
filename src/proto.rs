@@ -290,14 +290,15 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rcr_positive(&mut self, packet: Packet<O>) {
         match self.state {
-            ProtocolState::Closed => {
-                self.output_tx.send(Packet {
+            ProtocolState::Closed => self
+                .output_tx
+                .send(Packet {
                     ty: PacketType::TerminateAck,
                     options: Vec::default(),
                     rejected_code: PacketType::Unknown,
                     rejected_protocol: 0,
-                });
-            }
+                })
+                .expect("output channel is closed"),
             ProtocolState::Stopped => {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_configure;

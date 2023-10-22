@@ -888,6 +888,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
+                self.restart_counter -= 1;
             }
             ProtocolState::AckReceived => {
                 self.restart_timer.reset();
@@ -914,6 +915,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
+                self.restart_counter -= 1;
 
                 self.state = ProtocolState::RequestSent;
             }
@@ -943,6 +945,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
+                self.restart_counter -= 1;
             }
             ProtocolState::Opened => {
                 // tld action
@@ -972,6 +975,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
+                self.restart_counter -= 1;
 
                 self.state = ProtocolState::RequestSent;
             }
@@ -1049,6 +1053,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
+                self.restart_counter -= 1;
 
                 self.state = ProtocolState::RequestSent;
             }
@@ -1096,6 +1101,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
+                self.restart_counter -= 1;
 
                 self.state = ProtocolState::Stopping;
             }

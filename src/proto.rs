@@ -147,6 +147,10 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         // Pass on packets from channel populated by from_recv.
         // Watch timers and counters.
         // Mutate state if necessary.
+
+        tokio::select! {
+            packet = self.output_rx.recv() => packet.expect("output channel is closed"),
+        }
     }
 
     /// Feeds a packet into the state machine for processing.

@@ -199,12 +199,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_configure;
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
                 self.restart_counter -= 1;
 
                 self.state = ProtocolState::RequestSent;
@@ -248,12 +250,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_configure;
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
                 self.restart_counter -= 1;
 
                 self.state = ProtocolState::RequestSent;
@@ -282,12 +286,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_terminate;
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::TerminateRequest,
-                    options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::TerminateRequest,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
                 self.restart_counter -= 1;
 
                 self.state = ProtocolState::Closing;
@@ -299,12 +305,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_terminate;
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::TerminateRequest,
-                    options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::TerminateRequest,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
                 self.restart_counter -= 1;
 
                 self.state = ProtocolState::Closing;
@@ -328,31 +336,37 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_configure;
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
                 self.restart_counter -= 1;
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureAck,
-                    options: packet.options,
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureAck,
+                        options: packet.options,
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::AckSent;
             }
             ProtocolState::Closing | ProtocolState::Stopping => {}
             ProtocolState::RequestSent => {
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureAck,
-                    options: packet.options,
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureAck,
+                        options: packet.options,
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::AckSent;
             }
@@ -360,12 +374,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 // tlu action
                 // TODO: Inform upper layers via a channel.
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureAck,
-                    options: packet.options,
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureAck,
+                        options: packet.options,
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::Opened;
             }
@@ -384,20 +400,24 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
                 self.restart_timer.reset();
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
                 self.restart_counter -= 1;
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureAck,
-                    options: packet.options,
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureAck,
+                        options: packet.options,
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::AckSent;
             }
@@ -420,12 +440,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_configure;
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
                 self.restart_counter -= 1;
 
                 let nak_require: Vec<O> = self
@@ -466,24 +488,28 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .collect();
 
                 if !nak_require.is_empty() || !nak_deny_exact.is_empty() {
-                    self.output_tx.send(Packet {
-                        ty: PacketType::ConfigureNak,
-                        options: if !nak_require.is_empty() {
-                            nak_require
-                        } else {
-                            nak_deny_exact
-                        },
-                        rejected_code: PacketType::Unknown,
-                        rejected_protocol: 0,
-                    });
+                    self.output_tx
+                        .send(Packet {
+                            ty: PacketType::ConfigureNak,
+                            options: if !nak_require.is_empty() {
+                                nak_require
+                            } else {
+                                nak_deny_exact
+                            },
+                            rejected_code: PacketType::Unknown,
+                            rejected_protocol: 0,
+                        })
+                        .expect("output channel is closed");
                 } else {
                     // No check, this function is only called if something is inacceptable.
-                    self.output_tx.send(Packet {
-                        ty: PacketType::ConfigureReject,
-                        options: reject_deny,
-                        rejected_code: PacketType::Unknown,
-                        rejected_protocol: 0,
-                    });
+                    self.output_tx
+                        .send(Packet {
+                            ty: PacketType::ConfigureReject,
+                            options: reject_deny,
+                            rejected_code: PacketType::Unknown,
+                            rejected_protocol: 0,
+                        })
+                        .expect("output channel is closed");
                 }
 
                 self.state = ProtocolState::RequestSent;
@@ -528,24 +554,28 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .collect();
 
                 if !nak_require.is_empty() || !nak_deny_exact.is_empty() {
-                    self.output_tx.send(Packet {
-                        ty: PacketType::ConfigureNak,
-                        options: if !nak_require.is_empty() {
-                            nak_require
-                        } else {
-                            nak_deny_exact
-                        },
-                        rejected_code: PacketType::Unknown,
-                        rejected_protocol: 0,
-                    });
+                    self.output_tx
+                        .send(Packet {
+                            ty: PacketType::ConfigureNak,
+                            options: if !nak_require.is_empty() {
+                                nak_require
+                            } else {
+                                nak_deny_exact
+                            },
+                            rejected_code: PacketType::Unknown,
+                            rejected_protocol: 0,
+                        })
+                        .expect("output channel is closed");
                 } else {
                     // No check, this function is only called if something is inacceptable.
-                    self.output_tx.send(Packet {
-                        ty: PacketType::ConfigureReject,
-                        options: reject_deny,
-                        rejected_code: PacketType::Unknown,
-                        rejected_protocol: 0,
-                    });
+                    self.output_tx
+                        .send(Packet {
+                            ty: PacketType::ConfigureReject,
+                            options: reject_deny,
+                            rejected_code: PacketType::Unknown,
+                            rejected_protocol: 0,
+                        })
+                        .expect("output channel is closed");
                 }
             }
             ProtocolState::AckReceived => {
@@ -587,24 +617,28 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .collect();
 
                 if !nak_require.is_empty() || !nak_deny_exact.is_empty() {
-                    self.output_tx.send(Packet {
-                        ty: PacketType::ConfigureNak,
-                        options: if !nak_require.is_empty() {
-                            nak_require
-                        } else {
-                            nak_deny_exact
-                        },
-                        rejected_code: PacketType::Unknown,
-                        rejected_protocol: 0,
-                    });
+                    self.output_tx
+                        .send(Packet {
+                            ty: PacketType::ConfigureNak,
+                            options: if !nak_require.is_empty() {
+                                nak_require
+                            } else {
+                                nak_deny_exact
+                            },
+                            rejected_code: PacketType::Unknown,
+                            rejected_protocol: 0,
+                        })
+                        .expect("output channel is closed");
                 } else {
                     // No check, this function is only called if something is inacceptable.
-                    self.output_tx.send(Packet {
-                        ty: PacketType::ConfigureReject,
-                        options: reject_deny,
-                        rejected_code: PacketType::Unknown,
-                        rejected_protocol: 0,
-                    });
+                    self.output_tx
+                        .send(Packet {
+                            ty: PacketType::ConfigureReject,
+                            options: reject_deny,
+                            rejected_code: PacketType::Unknown,
+                            rejected_protocol: 0,
+                        })
+                        .expect("output channel is closed");
                 }
             }
             ProtocolState::AckSent => {
@@ -646,24 +680,28 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .collect();
 
                 if !nak_require.is_empty() || !nak_deny_exact.is_empty() {
-                    self.output_tx.send(Packet {
-                        ty: PacketType::ConfigureNak,
-                        options: if !nak_require.is_empty() {
-                            nak_require
-                        } else {
-                            nak_deny_exact
-                        },
-                        rejected_code: PacketType::Unknown,
-                        rejected_protocol: 0,
-                    });
+                    self.output_tx
+                        .send(Packet {
+                            ty: PacketType::ConfigureNak,
+                            options: if !nak_require.is_empty() {
+                                nak_require
+                            } else {
+                                nak_deny_exact
+                            },
+                            rejected_code: PacketType::Unknown,
+                            rejected_protocol: 0,
+                        })
+                        .expect("output channel is closed");
                 } else {
                     // No check, this function is only called if something is inacceptable.
-                    self.output_tx.send(Packet {
-                        ty: PacketType::ConfigureReject,
-                        options: reject_deny,
-                        rejected_code: PacketType::Unknown,
-                        rejected_protocol: 0,
-                    });
+                    self.output_tx
+                        .send(Packet {
+                            ty: PacketType::ConfigureReject,
+                            options: reject_deny,
+                            rejected_code: PacketType::Unknown,
+                            rejected_protocol: 0,
+                        })
+                        .expect("output channel is closed");
                 }
 
                 self.state = ProtocolState::RequestSent;
@@ -674,12 +712,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
                 self.restart_timer.reset();
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
                 self.restart_counter -= 1;
 
                 let nak_require: Vec<O> = self
@@ -720,24 +760,28 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .collect();
 
                 if !nak_require.is_empty() || !nak_deny_exact.is_empty() {
-                    self.output_tx.send(Packet {
-                        ty: PacketType::ConfigureNak,
-                        options: if !nak_require.is_empty() {
-                            nak_require
-                        } else {
-                            nak_deny_exact
-                        },
-                        rejected_code: PacketType::Unknown,
-                        rejected_protocol: 0,
-                    });
+                    self.output_tx
+                        .send(Packet {
+                            ty: PacketType::ConfigureNak,
+                            options: if !nak_require.is_empty() {
+                                nak_require
+                            } else {
+                                nak_deny_exact
+                            },
+                            rejected_code: PacketType::Unknown,
+                            rejected_protocol: 0,
+                        })
+                        .expect("output channel is closed");
                 } else {
                     // No check, this function is only called if something is inacceptable.
-                    self.output_tx.send(Packet {
-                        ty: PacketType::ConfigureReject,
-                        options: reject_deny,
-                        rejected_code: PacketType::Unknown,
-                        rejected_protocol: 0,
-                    });
+                    self.output_tx
+                        .send(Packet {
+                            ty: PacketType::ConfigureReject,
+                            options: reject_deny,
+                            rejected_code: PacketType::Unknown,
+                            rejected_protocol: 0,
+                        })
+                        .expect("output channel is closed");
                 }
 
                 self.state = ProtocolState::RequestSent;
@@ -745,7 +789,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
-    fn rca(&mut self, packet: Packet<O>) {
+    fn rca(&mut self, _packet: Packet<O>) {
         match self.state {
             ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed | ProtocolState::Stopped => self
@@ -765,12 +809,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             ProtocolState::AckReceived => {
                 self.restart_timer.reset();
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
                 self.restart_counter -= 1;
 
                 self.state = ProtocolState::RequestSent;
@@ -788,12 +834,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
                 self.restart_timer.reset();
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
                 self.restart_counter -= 1;
 
                 self.state = ProtocolState::RequestSent;
@@ -832,12 +880,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     }
                 }
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
             }
             ProtocolState::AckReceived => {
                 self.restart_timer.reset();
@@ -856,12 +906,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     }
                 }
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::RequestSent;
             }
@@ -883,12 +935,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     }
                 }
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
             }
             ProtocolState::Opened => {
                 // tld action
@@ -910,19 +964,21 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     }
                 }
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::RequestSent;
             }
         }
     }
 
-    fn rtr(&mut self, packet: Packet<O>) {
+    fn rtr(&mut self, _packet: Packet<O>) {
         match self.state {
             ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed
@@ -939,12 +995,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 })
                 .expect("output channel is closed"),
             ProtocolState::AckReceived | ProtocolState::AckSent => {
-                self.output_tx.send(Packet {
-                    ty: PacketType::TerminateAck,
-                    options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::TerminateAck,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::RequestSent;
             }
@@ -954,19 +1012,21 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
                 self.restart_counter = 0;
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::TerminateAck,
-                    options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::TerminateAck,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::Stopping;
             }
         }
     }
 
-    fn rta(&mut self, packet: Packet<O>) {
+    fn rta(&mut self, _packet: Packet<O>) {
         match self.state {
             ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed | ProtocolState::Stopped => {}
@@ -981,12 +1041,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
                 self.restart_timer.reset();
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::ConfigureRequest,
-                    options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::ConfigureRequest,
+                        options: self.request.clone(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::RequestSent;
             }
@@ -994,21 +1056,23 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     }
 
     fn ruc(&mut self, packet: Packet<O>) {
-        self.output_tx.send(Packet {
-            ty: PacketType::CodeReject,
-            options: Vec::default(),
-            rejected_code: packet.rejected_code,
-            rejected_protocol: 0,
-        });
+        self.output_tx
+            .send(Packet {
+                ty: PacketType::CodeReject,
+                options: Vec::default(),
+                rejected_code: packet.rejected_code,
+                rejected_protocol: 0,
+            })
+            .expect("output channel is closed");
     }
 
-    fn rxj_positive(&mut self, packet: Packet<O>) {
+    fn rxj_positive(&mut self, _packet: Packet<O>) {
         if self.state == ProtocolState::AckReceived {
             self.state = ProtocolState::RequestSent;
         }
     }
 
-    fn rxj_negative(&mut self, packet: Packet<O>) {
+    fn rxj_negative(&mut self, _packet: Packet<O>) {
         match self.state {
             ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed | ProtocolState::Stopped => {}   // tlf action
@@ -1024,12 +1088,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_terminate;
 
-                self.output_tx.send(Packet {
-                    ty: PacketType::TerminateRequest,
-                    options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: 0,
-                });
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::TerminateRequest,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::Stopping;
             }

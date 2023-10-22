@@ -53,6 +53,22 @@ pub trait ProtocolOption: Clone + Eq + Serialize + DeserializeOwned {
     fn has_same_type(&self, other: &Self) -> bool;
 }
 
+/// A set of configuration parameters for a protocol.
+#[derive(Debug)]
+pub struct ProtocolConfig<O: ProtocolOption> {
+    pub require: Vec<O>,
+    pub deny: Vec<O>,
+    pub deny_exact: Vec<(O, O)>,
+    pub request: Vec<O>,
+    pub refuse: Vec<O>,
+    pub refuse_exact: Vec<O>,
+    pub need_protocol_reject: bool,
+    pub restart_interval: Option<Duration>,
+    pub max_terminate: Option<u32>,
+    pub max_configure: Option<u32>,
+    pub max_failure: Option<u32>,
+}
+
 /// A sub-protocol that implements the PPP Option Negotiation mechanism
 /// as per RFC 1661 section 4. Used to manage individual protocols.
 #[derive(Debug)]
@@ -97,19 +113,21 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     /// * `max_failure` - The maximum number of Cfg-Naks sent before rejecting, default is 5.
     ///
     /// The resulting `processor` **must** be spawned before using the `Negotiator`.
-    pub fn new(
-        require: Vec<O>,
-        deny: Vec<O>,
-        deny_exact: Vec<(O, O)>,
-        request: Vec<O>,
-        refuse: Vec<O>,
-        refuse_exact: Vec<O>,
-        need_protocol_reject: bool,
-        restart_interval: Option<Duration>,
-        max_terminate: Option<u32>,
-        max_configure: Option<u32>,
-        max_failure: Option<u32>,
-    ) -> Self {
+    pub fn new(config: ProtocolConfig<O>) -> Self {
+        let ProtocolConfig {
+            require,
+            deny,
+            deny_exact,
+            request,
+            refuse,
+            refuse_exact,
+            need_protocol_reject,
+            restart_interval,
+            max_terminate,
+            max_configure,
+            max_failure,
+        } = config;
+
         let restart_timer =
             tokio::time::interval(restart_interval.unwrap_or(Duration::from_secs(3)));
         let (output_tx, output_rx) = mpsc::unbounded_channel();

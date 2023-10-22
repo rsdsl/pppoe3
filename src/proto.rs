@@ -162,7 +162,19 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     /// Signals to the state machine that the lower layer is now down.
     /// This is equivalent to the Down event.
-    pub fn down(&mut self) {}
+    pub fn down(&mut self) {
+        match self.state {
+            ProtocolState::Closed => self.state = ProtocolState::Initial,
+            ProtocolState::Stopped => self.state = ProtocolState::Starting, // tls action
+            ProtocolState::Closing => self.state = ProtocolState::Initial,
+            ProtocolState::Stopping => self.state = ProtocolState::Starting,
+            ProtocolState::RequestSent => self.state = ProtocolState::Starting,
+            ProtocolState::AckReceived => self.state = ProtocolState::Starting,
+            ProtocolState::AckSent => self.state = ProtocolState::Starting,
+            ProtocolState::Opened => self.state = ProtocolState::Starting, // tld action
+                                                                           // TODO: Inform upper layers via a channel.
+        }
+    }
 
     /// Issues an administrative open, allowing the protocol to start negotiation.
     /// This is equivalent to the Open event.

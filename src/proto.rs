@@ -965,7 +965,28 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
-    fn rta(&mut self, packet: Packet<O>) {}
+    fn rta(&mut self, packet: Packet<O>) {
+        match self.state {
+            ProtocolState::Closing => self.state = ProtocolState::Closed, // tlf action
+            ProtocolState::Stopping => self.state = ProtocolState::Stopped, // tlf action
+            ProtocolState::AckReceived => self.state = ProtocolState::RequestSent,
+            ProtocolState::Opened => {
+                // tld action
+                // TODO: Inform upper layers via a channel.
+
+                self.restart_timer.reset();
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::RequestSent;
+            }
+        }
+    }
 
     fn ruc(&mut self, packet: Packet<O>) {}
 

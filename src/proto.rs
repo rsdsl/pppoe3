@@ -483,19 +483,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .expect("output channel is closed");
                 self.restart_counter -= 1;
 
-                let nak_require: Vec<O> = self
-                    .require
-                    .iter()
-                    .cloned()
-                    .filter(|required| {
-                        !packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(required))
-                    })
-                    .collect();
-
-                let nak_deny_exact: Vec<O> = self
+                let mut nak_deny_exact: Vec<O> = self
                     .deny_exact
                     .iter()
                     .cloned()
@@ -507,6 +495,21 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         }
                     })
                     .collect();
+
+                let mut nak_require: Vec<O> = self
+                    .require
+                    .iter()
+                    .cloned()
+                    .filter(|required| {
+                        !packet
+                            .options
+                            .iter()
+                            .any(|option| option.has_same_type(required))
+                    })
+                    .collect();
+
+                nak_deny_exact.append(&mut nak_require);
+                let nak = nak_deny_exact;
 
                 let reject_deny = self
                     .deny
@@ -520,15 +523,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     })
                     .collect();
 
-                if !nak_require.is_empty() || !nak_deny_exact.is_empty() {
+                let reject = reject_deny;
+
+                if !nak.is_empty() {
                     self.output_tx
                         .send(Packet {
                             ty: PacketType::ConfigureNak,
-                            options: if !nak_require.is_empty() {
-                                nak_require
-                            } else {
-                                nak_deny_exact
-                            },
+                            options: nak,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
                         })
@@ -538,7 +539,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     self.output_tx
                         .send(Packet {
                             ty: PacketType::ConfigureReject,
-                            options: reject_deny,
+                            options: reject,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
                         })
@@ -549,19 +550,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             }
             ProtocolState::Closing | ProtocolState::Stopping => {}
             ProtocolState::RequestSent => {
-                let nak_require: Vec<O> = self
-                    .require
-                    .iter()
-                    .cloned()
-                    .filter(|required| {
-                        !packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(required))
-                    })
-                    .collect();
-
-                let nak_deny_exact: Vec<O> = self
+                let mut nak_deny_exact: Vec<O> = self
                     .deny_exact
                     .iter()
                     .cloned()
@@ -573,6 +562,21 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         }
                     })
                     .collect();
+
+                let mut nak_require: Vec<O> = self
+                    .require
+                    .iter()
+                    .cloned()
+                    .filter(|required| {
+                        !packet
+                            .options
+                            .iter()
+                            .any(|option| option.has_same_type(required))
+                    })
+                    .collect();
+
+                nak_deny_exact.append(&mut nak_require);
+                let nak = nak_deny_exact;
 
                 let reject_deny = self
                     .deny
@@ -586,15 +590,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     })
                     .collect();
 
-                if !nak_require.is_empty() || !nak_deny_exact.is_empty() {
+                let reject = reject_deny;
+
+                if !nak.is_empty() {
                     self.output_tx
                         .send(Packet {
                             ty: PacketType::ConfigureNak,
-                            options: if !nak_require.is_empty() {
-                                nak_require
-                            } else {
-                                nak_deny_exact
-                            },
+                            options: nak,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
                         })
@@ -604,7 +606,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     self.output_tx
                         .send(Packet {
                             ty: PacketType::ConfigureReject,
-                            options: reject_deny,
+                            options: reject,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
                         })
@@ -612,19 +614,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 }
             }
             ProtocolState::AckReceived => {
-                let nak_require: Vec<O> = self
-                    .require
-                    .iter()
-                    .cloned()
-                    .filter(|required| {
-                        !packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(required))
-                    })
-                    .collect();
-
-                let nak_deny_exact: Vec<O> = self
+                let mut nak_deny_exact: Vec<O> = self
                     .deny_exact
                     .iter()
                     .cloned()
@@ -636,6 +626,21 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         }
                     })
                     .collect();
+
+                let mut nak_require: Vec<O> = self
+                    .require
+                    .iter()
+                    .cloned()
+                    .filter(|required| {
+                        !packet
+                            .options
+                            .iter()
+                            .any(|option| option.has_same_type(required))
+                    })
+                    .collect();
+
+                nak_deny_exact.append(&mut nak_require);
+                let nak = nak_deny_exact;
 
                 let reject_deny = self
                     .deny
@@ -649,15 +654,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     })
                     .collect();
 
-                if !nak_require.is_empty() || !nak_deny_exact.is_empty() {
+                let reject = reject_deny;
+
+                if !nak.is_empty() {
                     self.output_tx
                         .send(Packet {
                             ty: PacketType::ConfigureNak,
-                            options: if !nak_require.is_empty() {
-                                nak_require
-                            } else {
-                                nak_deny_exact
-                            },
+                            options: nak,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
                         })
@@ -667,7 +670,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     self.output_tx
                         .send(Packet {
                             ty: PacketType::ConfigureReject,
-                            options: reject_deny,
+                            options: reject,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
                         })
@@ -675,19 +678,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 }
             }
             ProtocolState::AckSent => {
-                let nak_require: Vec<O> = self
-                    .require
-                    .iter()
-                    .cloned()
-                    .filter(|required| {
-                        !packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(required))
-                    })
-                    .collect();
-
-                let nak_deny_exact: Vec<O> = self
+                let mut nak_deny_exact: Vec<O> = self
                     .deny_exact
                     .iter()
                     .cloned()
@@ -699,6 +690,21 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         }
                     })
                     .collect();
+
+                let mut nak_require: Vec<O> = self
+                    .require
+                    .iter()
+                    .cloned()
+                    .filter(|required| {
+                        !packet
+                            .options
+                            .iter()
+                            .any(|option| option.has_same_type(required))
+                    })
+                    .collect();
+
+                nak_deny_exact.append(&mut nak_require);
+                let nak = nak_deny_exact;
 
                 let reject_deny = self
                     .deny
@@ -712,15 +718,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     })
                     .collect();
 
-                if !nak_require.is_empty() || !nak_deny_exact.is_empty() {
+                let reject = reject_deny;
+
+                if !nak.is_empty() {
                     self.output_tx
                         .send(Packet {
                             ty: PacketType::ConfigureNak,
-                            options: if !nak_require.is_empty() {
-                                nak_require
-                            } else {
-                                nak_deny_exact
-                            },
+                            options: nak,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
                         })
@@ -730,7 +734,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     self.output_tx
                         .send(Packet {
                             ty: PacketType::ConfigureReject,
-                            options: reject_deny,
+                            options: reject,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
                         })
@@ -755,19 +759,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .expect("output channel is closed");
                 self.restart_counter -= 1;
 
-                let nak_require: Vec<O> = self
-                    .require
-                    .iter()
-                    .cloned()
-                    .filter(|required| {
-                        !packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(required))
-                    })
-                    .collect();
-
-                let nak_deny_exact: Vec<O> = self
+                let mut nak_deny_exact: Vec<O> = self
                     .deny_exact
                     .iter()
                     .cloned()
@@ -779,6 +771,21 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         }
                     })
                     .collect();
+
+                let mut nak_require: Vec<O> = self
+                    .require
+                    .iter()
+                    .cloned()
+                    .filter(|required| {
+                        !packet
+                            .options
+                            .iter()
+                            .any(|option| option.has_same_type(required))
+                    })
+                    .collect();
+
+                nak_deny_exact.append(&mut nak_require);
+                let nak = nak_deny_exact;
 
                 let reject_deny = self
                     .deny
@@ -792,15 +799,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     })
                     .collect();
 
-                if !nak_require.is_empty() || !nak_deny_exact.is_empty() {
+                let reject = reject_deny;
+
+                if !nak.is_empty() {
                     self.output_tx
                         .send(Packet {
                             ty: PacketType::ConfigureNak,
-                            options: if !nak_require.is_empty() {
-                                nak_require
-                            } else {
-                                nak_deny_exact
-                            },
+                            options: nak,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
                         })
@@ -810,7 +815,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     self.output_tx
                         .send(Packet {
                             ty: PacketType::ConfigureReject,
-                            options: reject_deny,
+                            options: reject,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
                         })

@@ -771,7 +771,156 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
-    fn rcn(&mut self, packet: Packet<O>) {}
+    fn rcn(&mut self, packet: Packet<O>) {
+        match self.state {
+            ProtocolState::Closed | ProtocolState::Stopped => self
+                .output_tx
+                .send(Packet {
+                    ty: PacketType::TerminateAck,
+                    options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                })
+                .expect("output channel is closed"),
+            ProtocolState::RequestSent => {
+                self.restart_timer.reset();
+                self.restart_counter = self.max_configure;
+
+                let accepted_naks = packet.options.iter().filter(|&option| {
+                    !self
+                        .refuse
+                        .iter()
+                        .any(|refused| refused.has_same_type(option))
+                        && !self.refuse_exact.iter().any(|&refused| refused == *option)
+                });
+
+                let to_modify = self.request.iter_mut().filter_map(|option| {
+                    accepted_naks.find_map(|nak| {
+                        if nak.has_same_type(option) {
+                            Some((option, nak))
+                        } else {
+                            None
+                        }
+                    })
+                });
+
+                for (option, nak) in to_modify {
+                    *option = nak.clone();
+                }
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+            }
+            ProtocolState::AckReceived => {
+                self.restart_timer.reset();
+
+                let accepted_naks = packet.options.iter().filter(|&option| {
+                    !self
+                        .refuse
+                        .iter()
+                        .any(|refused| refused.has_same_type(option))
+                        && !self.refuse_exact.iter().any(|&refused| refused == *option)
+                });
+
+                let to_modify = self.request.iter_mut().filter_map(|option| {
+                    accepted_naks.find_map(|nak| {
+                        if nak.has_same_type(option) {
+                            Some((option, nak))
+                        } else {
+                            None
+                        }
+                    })
+                });
+
+                for (option, nak) in to_modify {
+                    *option = nak.clone();
+                }
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::RequestSent;
+            }
+            ProtocolState::AckSent => {
+                self.restart_timer.reset();
+                self.restart_counter = self.max_configure;
+
+                let accepted_naks = packet.options.iter().filter(|&option| {
+                    !self
+                        .refuse
+                        .iter()
+                        .any(|refused| refused.has_same_type(option))
+                        && !self.refuse_exact.iter().any(|&refused| refused == *option)
+                });
+
+                let to_modify = self.request.iter_mut().filter_map(|option| {
+                    accepted_naks.find_map(|nak| {
+                        if nak.has_same_type(option) {
+                            Some((option, nak))
+                        } else {
+                            None
+                        }
+                    })
+                });
+
+                for (option, nak) in to_modify {
+                    *option = nak.clone();
+                }
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+            }
+            ProtocolState::Opened => {
+                // tld action
+                // TODO: Inform upper layers via a channel.
+
+                self.restart_timer.reset();
+
+                let accepted_naks = packet.options.iter().filter(|&option| {
+                    !self
+                        .refuse
+                        .iter()
+                        .any(|refused| refused.has_same_type(option))
+                        && !self.refuse_exact.iter().any(|&refused| refused == *option)
+                });
+
+                let to_modify = self.request.iter_mut().filter_map(|option| {
+                    accepted_naks.find_map(|nak| {
+                        if nak.has_same_type(option) {
+                            Some((option, nak))
+                        } else {
+                            None
+                        }
+                    })
+                });
+
+                for (option, nak) in to_modify {
+                    *option = nak.clone();
+                }
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::RequestSent;
+            }
+        }
+    }
 
     fn rtr(&mut self, packet: Packet<O>) {}
 

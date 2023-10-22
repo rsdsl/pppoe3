@@ -1065,7 +1065,10 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             | PacketType::TerminateAck
             | PacketType::CodeReject => true,
             PacketType::ProtocolReject => self.need_protocol_reject,
-            PacketType::Unknown => false,
+            PacketType::EchoRequest
+            | PacketType::EchoReply
+            | PacketType::DiscardRequest
+            | PacketType::Unknown => false,
         }
     }
 

@@ -997,7 +997,11 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         });
     }
 
-    fn rxj_positive(&mut self, packet: Packet<O>) {}
+    fn rxj_positive(&mut self, packet: Packet<O>) {
+        if self.state == ProtocolState::AckReceived {
+            self.state = ProtocolState::RequestSent;
+        }
+    }
 
     fn rxj_negative(&mut self, packet: Packet<O>) {}
 

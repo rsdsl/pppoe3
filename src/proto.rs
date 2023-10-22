@@ -154,6 +154,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     ty: PacketType::ConfigureRequest,
                     options: self.request.clone(),
                 });
+                self.restart_counter -= 1;
 
                 self.state = ProtocolState::RequestSent;
             }
@@ -189,6 +190,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     ty: PacketType::ConfigureRequest,
                     options: self.request.clone(),
                 });
+                self.restart_counter -= 1;
 
                 self.state = ProtocolState::RequestSent;
             }
@@ -210,6 +212,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     ty: PacketType::TerminateRequest,
                     options: Vec::default(),
                 });
+                self.restart_counter -= 1;
 
                 self.state = ProtocolState::Closing;
             }
@@ -223,6 +226,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     ty: PacketType::TerminateRequest,
                     options: Vec::default(),
                 });
+                self.restart_counter -= 1;
 
                 self.state = ProtocolState::Closing;
             }

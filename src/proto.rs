@@ -1003,7 +1003,32 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
-    fn rxj_negative(&mut self, packet: Packet<O>) {}
+    fn rxj_negative(&mut self, packet: Packet<O>) {
+        match self.state {
+            ProtocolState::Closed | ProtocolState::Stopped => {} // tlf action
+            ProtocolState::Closing => self.state = ProtocolState::Closed, // tlf action
+            ProtocolState::Stopping
+            | ProtocolState::RequestSent
+            | ProtocolState::AckReceived
+            | ProtocolState::AckSent => self.state = ProtocolState::Stopped, // tlf action
+            ProtocolState::Opened => {
+                // tld action
+                // TODO: Inform upper layers via a channel.
+
+                self.restart_timer.reset();
+                self.restart_counter = self.max_terminate;
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::TerminateRequest,
+                    options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::Stopping;
+            }
+        }
+    }
 
     fn is_acceptable(&self, options: &[O]) -> bool {
         // require, deny, deny_exact

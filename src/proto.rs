@@ -907,10 +907,19 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                         && !self.refuse_exact.iter().any(|refused| *refused == *option)
                 });
 
-                for option in self.request.iter_mut() {
-                    if let Some(nak) = accepted_naks.find(|nak| nak.has_same_type(option)) {
-                        *option = nak.clone();
+                match packet.ty {
+                    PacketType::ConfigureNak => {
+                        for option in self.request.iter_mut() {
+                            if let Some(nak) = accepted_naks.find(|nak| nak.has_same_type(option)) {
+                                *option = nak.clone();
+                            }
+                        }
                     }
+                    PacketType::ConfigureReject => self.request.retain(|option| {
+                        !accepted_naks
+                            .any(|nak| nak.has_same_type(option))
+                    }),
+                    _ => panic!("NegotiationProtocol::rcn called on packet type other than Configure-Nak or Configure-Reject"),
                 }
 
                 self.output_tx

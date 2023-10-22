@@ -320,6 +320,11 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
+    /// Returns the options set by the peer.
+    pub fn peer(&self) -> &[O] {
+        &self.peer
+    }
+
     fn rcr_positive(&mut self, packet: Packet<O>) {
         match self.state {
             ProtocolState::Initial | ProtocolState::Starting => {} // illegal
@@ -349,12 +354,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.output_tx
                     .send(Packet {
                         ty: PacketType::ConfigureAck,
-                        options: packet.options,
+                        options: packet.options.clone(),
                         rejected_code: PacketType::Unknown,
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
 
+                self.peer = packet.options;
                 self.state = ProtocolState::AckSent;
             }
             ProtocolState::Closing | ProtocolState::Stopping => {}
@@ -362,12 +368,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.output_tx
                     .send(Packet {
                         ty: PacketType::ConfigureAck,
-                        options: packet.options,
+                        options: packet.options.clone(),
                         rejected_code: PacketType::Unknown,
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
 
+                self.peer = packet.options;
                 self.state = ProtocolState::AckSent;
             }
             ProtocolState::AckReceived => {
@@ -413,12 +420,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.output_tx
                     .send(Packet {
                         ty: PacketType::ConfigureAck,
-                        options: packet.options,
+                        options: packet.options.clone(),
                         rejected_code: PacketType::Unknown,
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
 
+                self.peer = packet.options;
                 self.state = ProtocolState::AckSent;
             }
         }

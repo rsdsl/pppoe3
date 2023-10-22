@@ -108,6 +108,8 @@ pub struct NegotiationProtocol<O: ProtocolOption> {
     max_configure: u32,
     max_failure: u32,
 
+    failure: u32,
+
     output_tx: mpsc::UnboundedSender<Packet<O>>,
     output_rx: mpsc::UnboundedReceiver<Packet<O>>,
 }
@@ -159,6 +161,8 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             max_terminate: max_terminate.unwrap_or(2),
             max_configure: max_configure.unwrap_or(10),
             max_failure: max_failure.unwrap_or(5),
+
+            failure: 0,
 
             output_tx,
             output_rx,
@@ -488,8 +492,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .iter()
                     .cloned()
                     .filter_map(|(denied, suggest)| {
-                        if packet.options.iter().any(|option| *option == denied) {
-                            Some(suggest)
+                        if let Some(option) =
+                            packet.options.iter().find(|&option| *option == denied)
+                        {
+                            Some(if self.failure < self.max_failure {
+                                suggest
+                            } else {
+                                option.clone()
+                            })
                         } else {
                             None
                         }
@@ -508,7 +518,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     })
                     .collect();
 
-                nak_deny_exact.append(&mut nak_require);
+                if self.failure < self.max_failure {
+                    nak_deny_exact.append(&mut nak_require)
+                };
                 let nak = nak_deny_exact;
 
                 let reject_deny = self
@@ -528,7 +540,11 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 if !nak.is_empty() {
                     self.output_tx
                         .send(Packet {
-                            ty: PacketType::ConfigureNak,
+                            ty: if self.failure < self.max_failure {
+                                PacketType::ConfigureNak
+                            } else {
+                                PacketType::ConfigureReject
+                            },
                             options: nak,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
@@ -555,8 +571,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .iter()
                     .cloned()
                     .filter_map(|(denied, suggest)| {
-                        if packet.options.iter().any(|option| *option == denied) {
-                            Some(suggest)
+                        if let Some(option) =
+                            packet.options.iter().find(|&option| *option == denied)
+                        {
+                            Some(if self.failure < self.max_failure {
+                                suggest
+                            } else {
+                                option.clone()
+                            })
                         } else {
                             None
                         }
@@ -575,7 +597,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     })
                     .collect();
 
-                nak_deny_exact.append(&mut nak_require);
+                if self.failure < self.max_failure {
+                    nak_deny_exact.append(&mut nak_require)
+                };
                 let nak = nak_deny_exact;
 
                 let reject_deny = self
@@ -595,7 +619,11 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 if !nak.is_empty() {
                     self.output_tx
                         .send(Packet {
-                            ty: PacketType::ConfigureNak,
+                            ty: if self.failure < self.max_failure {
+                                PacketType::ConfigureNak
+                            } else {
+                                PacketType::ConfigureReject
+                            },
                             options: nak,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
@@ -619,8 +647,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .iter()
                     .cloned()
                     .filter_map(|(denied, suggest)| {
-                        if packet.options.iter().any(|option| *option == denied) {
-                            Some(suggest)
+                        if let Some(option) =
+                            packet.options.iter().find(|&option| *option == denied)
+                        {
+                            Some(if self.failure < self.max_failure {
+                                suggest
+                            } else {
+                                option.clone()
+                            })
                         } else {
                             None
                         }
@@ -639,7 +673,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     })
                     .collect();
 
-                nak_deny_exact.append(&mut nak_require);
+                if self.failure < self.max_failure {
+                    nak_deny_exact.append(&mut nak_require)
+                };
                 let nak = nak_deny_exact;
 
                 let reject_deny = self
@@ -659,7 +695,11 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 if !nak.is_empty() {
                     self.output_tx
                         .send(Packet {
-                            ty: PacketType::ConfigureNak,
+                            ty: if self.failure < self.max_failure {
+                                PacketType::ConfigureNak
+                            } else {
+                                PacketType::ConfigureReject
+                            },
                             options: nak,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
@@ -683,8 +723,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .iter()
                     .cloned()
                     .filter_map(|(denied, suggest)| {
-                        if packet.options.iter().any(|option| *option == denied) {
-                            Some(suggest)
+                        if let Some(option) =
+                            packet.options.iter().find(|&option| *option == denied)
+                        {
+                            Some(if self.failure < self.max_failure {
+                                suggest
+                            } else {
+                                option.clone()
+                            })
                         } else {
                             None
                         }
@@ -703,7 +749,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     })
                     .collect();
 
-                nak_deny_exact.append(&mut nak_require);
+                if self.failure < self.max_failure {
+                    nak_deny_exact.append(&mut nak_require)
+                };
                 let nak = nak_deny_exact;
 
                 let reject_deny = self
@@ -723,7 +771,11 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 if !nak.is_empty() {
                     self.output_tx
                         .send(Packet {
-                            ty: PacketType::ConfigureNak,
+                            ty: if self.failure < self.max_failure {
+                                PacketType::ConfigureNak
+                            } else {
+                                PacketType::ConfigureReject
+                            },
                             options: nak,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,
@@ -764,8 +816,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .iter()
                     .cloned()
                     .filter_map(|(denied, suggest)| {
-                        if packet.options.iter().any(|option| *option == denied) {
-                            Some(suggest)
+                        if let Some(option) =
+                            packet.options.iter().find(|&option| *option == denied)
+                        {
+                            Some(if self.failure < self.max_failure {
+                                suggest
+                            } else {
+                                option.clone()
+                            })
                         } else {
                             None
                         }
@@ -784,7 +842,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     })
                     .collect();
 
-                nak_deny_exact.append(&mut nak_require);
+                if self.failure < self.max_failure {
+                    nak_deny_exact.append(&mut nak_require)
+                };
                 let nak = nak_deny_exact;
 
                 let reject_deny = self
@@ -804,7 +864,11 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 if !nak.is_empty() {
                     self.output_tx
                         .send(Packet {
-                            ty: PacketType::ConfigureNak,
+                            ty: if self.failure < self.max_failure {
+                                PacketType::ConfigureNak
+                            } else {
+                                PacketType::ConfigureReject
+                            },
                             options: nak,
                             rejected_code: PacketType::Unknown,
                             rejected_protocol: 0,

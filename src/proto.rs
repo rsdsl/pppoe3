@@ -988,7 +988,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
-    fn ruc(&mut self, packet: Packet<O>) {}
+    fn ruc(&mut self, packet: Packet<O>) {
+        self.output_tx.send(Packet {
+            ty: PacketType::CodeReject,
+            options: Vec::default(),
+            rejected_code: packet.rejected_code,
+            rejected_protocol: 0,
+        });
+    }
 
     fn rxj_positive(&mut self, packet: Packet<O>) {}
 

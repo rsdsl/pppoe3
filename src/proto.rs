@@ -30,6 +30,12 @@ pub enum PacketType {
     ConfigureReject,
     TerminateRequest,
     TerminateAck,
+    CodeReject,
+    ProtocolReject,
+    EchoRequest,
+    EchoReply,
+    DiscardRequest,
+    Unknown,
 }
 
 /// A packet that can be a Configure-Request, Configure-Ack, Configure-Nak,
@@ -38,10 +44,14 @@ pub enum PacketType {
 pub struct Packet<O: ProtocolOption> {
     pub ty: PacketType,
     pub options: Vec<O>,
+    pub rejected_code: PacketType,
+    pub rejected_protocol: u16,
 }
 
 /// A generic PPP option.
-pub trait ProtocolOption: Clone + Eq + Serialize + DeserializeOwned {}
+pub trait ProtocolOption: Clone + Eq + Serialize + DeserializeOwned {
+    fn has_same_type(&self, other: &Self) -> bool;
+}
 
 /// A sub-protocol that implements the PPP Option Negotiation mechanism
 /// as per RFC 1661 section 4. Used to manage individual protocols.
@@ -55,6 +65,8 @@ pub struct NegotiationProtocol<O: ProtocolOption> {
     refuse_exact: Vec<O>,
 
     peer: Vec<O>,
+
+    need_protocol_reject: bool,
 
     state: ProtocolState,
 
@@ -92,6 +104,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         request: Vec<O>,
         refuse: Vec<O>,
         refuse_exact: Vec<O>,
+        need_protocol_reject: bool,
         restart_interval: Option<Duration>,
         max_terminate: Option<u32>,
         max_configure: Option<u32>,
@@ -110,6 +123,8 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             refuse_exact,
 
             peer: Vec::default(),
+
+            need_protocol_reject,
 
             state: ProtocolState::default(),
 
@@ -140,6 +155,38 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         // TODO:
         // Process packet and construct outbound packet if necessary.
         // Mutate requested options as needed.
+
+        match packet.ty {
+            PacketType::ConfigureRequest => {
+                if self.is_acceptable(&packet.options) {
+                    self.rcr_positive(packet)
+                } else {
+                    self.rcr_negative(packet)
+                }
+            }
+            PacketType::ConfigureAck => self.rca(packet),
+            PacketType::ConfigureNak | PacketType::ConfigureReject => self.rcn(packet),
+            PacketType::TerminateRequest => self.rtr(packet),
+            PacketType::TerminateAck => self.rta(packet),
+            PacketType::Unknown => self.ruc(packet),
+            PacketType::CodeReject => {
+                if self.need_code(&packet.rejected_code) {
+                    self.rxj_negative(packet)
+                } else {
+                    self.rxj_positive(packet)
+                }
+            }
+            PacketType::ProtocolReject => {
+                if Self::need_protocol(packet.rejected_protocol) {
+                    self.rxj_negative(packet)
+                } else {
+                    self.rxj_positive(packet)
+                }
+            }
+            PacketType::EchoRequest => {
+                // TODO: Queue Echo-Reply transmission.
+            }
+        }
     }
 
     /// Signals to the state machine that the lower layer is now up.
@@ -153,6 +200,8 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.output_tx.send(Packet {
                     ty: PacketType::ConfigureRequest,
                     options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
                 });
                 self.restart_counter -= 1;
 
@@ -189,6 +238,8 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.output_tx.send(Packet {
                     ty: PacketType::ConfigureRequest,
                     options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
                 });
                 self.restart_counter -= 1;
 
@@ -211,6 +262,8 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.output_tx.send(Packet {
                     ty: PacketType::TerminateRequest,
                     options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
                 });
                 self.restart_counter -= 1;
 
@@ -225,11 +278,72 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.output_tx.send(Packet {
                     ty: PacketType::TerminateRequest,
                     options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
                 });
                 self.restart_counter -= 1;
 
                 self.state = ProtocolState::Closing;
             }
         }
+    }
+
+    fn rcr_positive(&mut self, packet: Packet<O>) {}
+
+    fn rcr_negative(&mut self, packet: Packet<O>) {}
+
+    fn rca(&mut self, packet: Packet<O>) {}
+
+    fn rcn(&mut self, packet: Packet<O>) {}
+
+    fn rtr(&mut self, packet: Packet<O>) {}
+
+    fn rta(&mut self, packet: Packet<O>) {}
+
+    fn ruc(&mut self, packet: Packet<O>) {}
+
+    fn rxj_positive(&mut self, packet: Packet<O>) {}
+
+    fn rxj_negative(&mut self, packet: Packet<O>) {}
+
+    fn is_acceptable(&self, options: &[O]) -> bool {
+        // require, deny, deny_exact
+
+        let require_satisfied = self
+            .require
+            .iter()
+            .all(|required| options.iter().any(|option| option.has_same_type(required)));
+
+        let deny_satisfied = self
+            .deny
+            .iter()
+            .any(|denied| options.iter().any(|option| option.has_same_type(denied)));
+
+        let deny_exact_satisfied = self
+            .deny_exact
+            .iter()
+            .any(|&denied| options.iter().any(|&option| option == denied));
+
+        require_satisfied && deny_satisfied && deny_exact_satisfied
+    }
+
+    fn need_code(&self, code: &PacketType) -> bool {
+        match code {
+            PacketType::ConfigureRequest
+            | PacketType::ConfigureAck
+            | PacketType::ConfigureNak
+            | PacketType::ConfigureReject
+            | PacketType::TerminateRequest
+            | PacketType::TerminateAck
+            | PacketType::CodeReject => true,
+            PacketType::ProtocolReject => self.need_protocol_reject,
+            PacketType::Unknown => false,
+        }
+    }
+
+    fn need_protocol(protocol: u16) -> bool {
+        use ppproperly::ppp;
+
+        protocol == ppp::LCP // TODO: Or the agreed-upon auth protocol of either peer.
     }
 }

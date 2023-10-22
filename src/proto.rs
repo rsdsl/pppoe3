@@ -462,12 +462,12 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         let deny_satisfied = self
             .deny
             .iter()
-            .any(|denied| options.iter().any(|option| option.has_same_type(denied)));
+            .all(|denied| !options.iter().any(|option| option.has_same_type(denied)));
 
         let deny_exact_satisfied = self
             .deny_exact
             .iter()
-            .any(|(denied, _)| options.iter().any(|&option| option == *denied));
+            .all(|(denied, _)| !options.iter().any(|&option| option == *denied));
 
         require_satisfied && deny_satisfied && deny_exact_satisfied
     }

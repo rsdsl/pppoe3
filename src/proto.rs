@@ -56,16 +56,31 @@ pub trait ProtocolOption: Clone + Eq + Serialize + DeserializeOwned {
 /// A set of configuration parameters for a protocol.
 #[derive(Debug)]
 pub struct ProtocolConfig<O: ProtocolOption> {
+    /// Options to require the peer to set including a suggestion.
     pub require: Vec<O>,
+    /// Options not to accept under any circumstances.
     pub deny: Vec<O>,
+    /// Options not to accept if they have one of the listed values including a suggestion.
     pub deny_exact: Vec<(O, O)>,
+
+    /// Options to request initially.
     pub request: Vec<O>,
+    /// Options not to accept suggestions for under any circumstances.
     pub refuse: Vec<O>,
+    /// Options not to accept the listed suggestion values for.
     pub refuse_exact: Vec<O>,
+
+    /// Whether this protocol makes use of the Protocol-Reject packet.
     pub need_protocol_reject: bool,
+
+    /// The retransmission interval (Restart Timer), default is 3 seconds.
     pub restart_interval: Option<Duration>,
+    /// The maximum number of Terminate-Requests to retransmit, default is 2.
     pub max_terminate: Option<u32>,
+    /// The maximum number of Configure-Requests to retransmit, default is 10.
     pub max_configure: Option<u32>,
+    /// The maximum number of Configure-Naks to send before switching to Configure-Rejects,
+    /// default is 5.
     pub max_failure: Option<u32>,
 }
 
@@ -98,21 +113,13 @@ pub struct NegotiationProtocol<O: ProtocolOption> {
 }
 
 impl<O: ProtocolOption> NegotiationProtocol<O> {
-    /// Creates a new `NegotiationProtocol` with the following characteristics:
+    /// Creates a new `NegotiationProtocol`
+    /// with the characteristics described by the [`ProtocolConfig`].
     ///
-    /// * `require` - Options to require the peer to set including a suggestion.
-    /// * `deny` - Options not to accept under any circumstances.
-    /// * `deny_exact` - Options not to accept if they have a listed value including a suggestion.
-    /// * `request` - Options to request initially.
-    /// * `refuse` - Options not to accept suggestions for under any circumstances.
-    /// * `refuse_exact` - Options not to accept the listed suggestion values for.
-    ///
-    /// * `restart_interval` - The retransmission interval (Restart Timer), default is 3 seconds.
-    /// * `max_terminate` - The maximum number of Term-Reqs to send, default is 2.
-    /// * `max_configure` - The maximum number of Configure-Reqs to send, default is 10.
-    /// * `max_failure` - The maximum number of Cfg-Naks sent before rejecting, default is 5.
-    ///
-    /// The resulting `processor` **must** be spawned before using the `Negotiator`.
+    /// You must start calling the [`NegotiationProtocol::to_send`] method
+    /// before calling the [`NegotiationProtocol::up`] or [`NegotiationProtocol::open`] methods
+    /// and keep calling it until [`NegotiationProtocol::close`] and [`NegotiationProtocol::down`]
+    /// have been issued.
     pub fn new(config: ProtocolConfig<O>) -> Self {
         let ProtocolConfig {
             require,

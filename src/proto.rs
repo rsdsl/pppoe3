@@ -63,6 +63,9 @@ pub struct NegotiationProtocol<O: ProtocolOption> {
     max_terminate: u32,
     max_configure: u32,
     max_failure: u32,
+    terminate: u32,
+    configure: u32,
+    failure: u32,
 
     output_tx: mpsc::UnboundedSender<Packet<O>>,
     output_rx: mpsc::UnboundedReceiver<Packet<O>>,
@@ -117,6 +120,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             max_terminate: max_terminate.unwrap_or(2),
             max_configure: max_configure.unwrap_or(10),
             max_failure: max_failure.unwrap_or(5),
+            terminate: 0,
+            configure: 0,
+            failure: 0,
 
             output_tx,
             output_rx,

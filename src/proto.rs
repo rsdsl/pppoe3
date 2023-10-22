@@ -390,6 +390,8 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .expect("output channel is closed");
 
                 self.peer = packet.options;
+                self.failure = 0;
+
                 self.state = ProtocolState::AckSent;
             }
             ProtocolState::Closing | ProtocolState::Stopping => {}
@@ -404,6 +406,8 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .expect("output channel is closed");
 
                 self.peer = packet.options;
+                self.failure = 0;
+
                 self.state = ProtocolState::AckSent;
             }
             ProtocolState::AckReceived => {
@@ -456,6 +460,8 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .expect("output channel is closed");
 
                 self.peer = packet.options;
+                self.failure = 0;
+
                 self.state = ProtocolState::AckSent;
             }
         }

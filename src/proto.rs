@@ -59,13 +59,11 @@ pub struct NegotiationProtocol<O: ProtocolOption> {
     state: ProtocolState,
 
     restart_timer: Interval,
+    restart_counter: u32,
 
     max_terminate: u32,
     max_configure: u32,
     max_failure: u32,
-    terminate: u32,
-    configure: u32,
-    failure: u32,
 
     output_tx: mpsc::UnboundedSender<Packet<O>>,
     output_rx: mpsc::UnboundedReceiver<Packet<O>>,
@@ -115,14 +113,12 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
             state: ProtocolState::default(),
 
-            restart_timer, // needs to be reset by some events
+            restart_timer,      // needs to be reset by some events
+            restart_counter: 0, // needs to be (re)set by some events
 
             max_terminate: max_terminate.unwrap_or(2),
             max_configure: max_configure.unwrap_or(10),
             max_failure: max_failure.unwrap_or(5),
-            terminate: 0,
-            configure: 0,
-            failure: 0,
 
             output_tx,
             output_rx,

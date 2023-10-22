@@ -148,6 +148,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         match self.state {
             ProtocolState::Initial => self.state = ProtocolState::Closed,
             ProtocolState::Starting => {
+                self.restart_counter = self.max_configure;
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                });
+
                 self.state = ProtocolState::RequestSent;
             }
         }

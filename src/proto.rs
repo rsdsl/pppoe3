@@ -195,6 +195,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         match self.state {
             ProtocolState::Initial => self.state = ProtocolState::Closed,
             ProtocolState::Starting => {
+                self.restart_timer.reset();
                 self.restart_counter = self.max_configure;
 
                 self.output_tx.send(Packet {
@@ -233,6 +234,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         match self.state {
             ProtocolState::Initial => self.state = ProtocolState::Starting, // tls action
             ProtocolState::Closed => {
+                self.restart_timer.reset();
                 self.restart_counter = self.max_configure;
 
                 self.output_tx.send(Packet {
@@ -257,6 +259,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             ProtocolState::Stopped => self.state = ProtocolState::Closed,
             ProtocolState::Stopping => self.state = ProtocolState::Closing,
             ProtocolState::RequestSent | ProtocolState::AckReceived | ProtocolState::AckSent => {
+                self.restart_timer.reset();
                 self.restart_counter = self.max_terminate;
 
                 self.output_tx.send(Packet {
@@ -273,6 +276,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 // tld action
                 // TODO: Inform upper layers via a channel.
 
+                self.restart_timer.reset();
                 self.restart_counter = self.max_terminate;
 
                 self.output_tx.send(Packet {

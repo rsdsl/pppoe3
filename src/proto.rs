@@ -398,9 +398,10 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     rejected_protocol: 0,
                 });
 
-                let nak_require = self
+                let nak_require: Vec<O> = self
                     .require
                     .iter()
+                    .cloned()
                     .filter(|required| {
                         !packet
                             .options
@@ -409,11 +410,12 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     })
                     .collect();
 
-                let nak_deny_exact = self
+                let nak_deny_exact: Vec<O> = self
                     .deny_exact
                     .iter()
+                    .cloned()
                     .filter_map(|(denied, suggest)| {
-                        if packet.options.iter().any(|&option| option == *denied) {
+                        if packet.options.iter().any(|&option| option == denied) {
                             Some(suggest)
                         } else {
                             None
@@ -424,6 +426,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 let reject_deny = self
                     .deny
                     .iter()
+                    .cloned()
                     .filter(|denied| {
                         packet
                             .options
@@ -431,6 +434,27 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                             .any(|option| option.has_same_type(denied))
                     })
                     .collect();
+
+                if !nak_require.is_empty() || !nak_deny_exact.is_empty() {
+                    self.output_tx.send(Packet {
+                        ty: PacketType::ConfigureNak,
+                        options: if !nak_require.is_empty() {
+                            nak_require
+                        } else {
+                            nak_deny_exact
+                        },
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    });
+                } else {
+                    // No check, this function is only called if something is inacceptable.
+                    self.output_tx.send(Packet {
+                        ty: PacketType::ConfigureReject,
+                        options: reject_deny,
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    });
+                }
 
                 self.state = ProtocolState::RequestSent;
             }

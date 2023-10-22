@@ -41,7 +41,7 @@ pub struct Packet<O: ProtocolOption> {
 }
 
 /// A generic PPP option.
-pub trait ProtocolOption: Eq + Serialize + DeserializeOwned {}
+pub trait ProtocolOption: Clone + Eq + Serialize + DeserializeOwned {}
 
 /// A sub-protocol that implements the PPP Option Negotiation mechanism
 /// as per RFC 1661 section 4. Used to manage individual protocols.

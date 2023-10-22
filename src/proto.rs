@@ -922,7 +922,48 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
-    fn rtr(&mut self, packet: Packet<O>) {}
+    fn rtr(&mut self, packet: Packet<O>) {
+        match self.state {
+            ProtocolState::Closed
+            | ProtocolState::Stopped
+            | ProtocolState::Closing
+            | ProtocolState::Stopping
+            | ProtocolState::RequestSent => self
+                .output_tx
+                .send(Packet {
+                    ty: PacketType::TerminateAck,
+                    options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                })
+                .expect("output channel is closed"),
+            ProtocolState::AckReceived | ProtocolState::AckSent => {
+                self.output_tx.send(Packet {
+                    ty: PacketType::TerminateAck,
+                    options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::RequestSent;
+            }
+            ProtocolState::Opened => {
+                // tld action
+                // TODO: Inform upper layers via a channel.
+
+                self.restart_counter = 0;
+
+                self.output_tx.send(Packet {
+                    ty: PacketType::TerminateAck,
+                    options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                });
+
+                self.state = ProtocolState::Stopping;
+            }
+        }
+    }
 
     fn rta(&mut self, packet: Packet<O>) {}
 

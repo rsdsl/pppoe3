@@ -309,6 +309,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     rejected_code: PacketType::Unknown,
                     rejected_protocol: 0,
                 });
+                self.restart_counter -= 1;
 
                 self.output_tx.send(Packet {
                     ty: PacketType::ConfigureAck,
@@ -363,6 +364,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     rejected_code: PacketType::Unknown,
                     rejected_protocol: 0,
                 });
+                self.restart_counter -= 1;
 
                 self.output_tx.send(Packet {
                     ty: PacketType::ConfigureAck,
@@ -397,6 +399,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     rejected_code: PacketType::Unknown,
                     rejected_protocol: 0,
                 });
+                self.restart_counter -= 1;
 
                 let nak_require: Vec<O> = self
                     .require
@@ -649,6 +652,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     rejected_code: PacketType::Unknown,
                     rejected_protocol: 0,
                 });
+                self.restart_counter -= 1;
 
                 let nak_require: Vec<O> = self
                     .require
@@ -737,6 +741,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     rejected_code: PacketType::Unknown,
                     rejected_protocol: 0,
                 });
+                self.restart_counter -= 1;
 
                 self.state = ProtocolState::RequestSent;
             }
@@ -759,6 +764,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     rejected_code: PacketType::Unknown,
                     rejected_protocol: 0,
                 });
+                self.restart_counter -= 1;
 
                 self.state = ProtocolState::RequestSent;
             }

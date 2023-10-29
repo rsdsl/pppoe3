@@ -213,7 +213,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 }
             }
             PacketType::ProtocolReject => {
-                if Self::need_protocol(packet.rejected_protocol) {
+                if self.need_protocol(packet.rejected_protocol) {
                     self.rxj_negative(packet)
                 } else {
                     self.rxj_positive(packet)
@@ -884,7 +884,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
-    fn need_protocol(protocol: u16) -> bool {
+    fn need_protocol(&self, protocol: u16) -> bool {
         use ppproperly::ppp;
 
         protocol == ppp::LCP // TODO: Or the agreed-upon auth protocol of either peer.

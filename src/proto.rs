@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio::time::Interval;
 
 use serde::{de::DeserializeOwned, Serialize};
@@ -112,6 +112,9 @@ pub struct NegotiationProtocol<O: ProtocolOption> {
 
     output_tx: mpsc::UnboundedSender<Packet<O>>,
     output_rx: mpsc::UnboundedReceiver<Packet<O>>,
+
+    upper_status_tx: watch::Sender<bool>,
+    upper_status_rx: watch::Receiver<bool>,
 }
 
 impl<O: ProtocolOption> NegotiationProtocol<O> {
@@ -140,6 +143,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         let restart_timer =
             tokio::time::interval(restart_interval.unwrap_or(Duration::from_secs(3)));
         let (output_tx, output_rx) = mpsc::unbounded_channel();
+        let (upper_status_tx, upper_status_rx) = watch::channel(false);
 
         Self {
             require,
@@ -166,6 +170,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
             output_tx,
             output_rx,
+
+            upper_status_tx,
+            upper_status_rx,
         }
     }
 
@@ -263,8 +270,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             ProtocolState::RequestSent => self.state = ProtocolState::Starting,
             ProtocolState::AckReceived => self.state = ProtocolState::Starting,
             ProtocolState::AckSent => self.state = ProtocolState::Starting,
-            ProtocolState::Opened => self.state = ProtocolState::Starting, // tld action
-                                                                           // TODO: Inform upper layers via a channel.
+            ProtocolState::Opened => {
+                self.upper_status_tx
+                    .send(false)
+                    .expect("upper status channel is closed");
+
+                self.state = ProtocolState::Starting;
+            }
         }
     }
 
@@ -328,8 +340,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.state = ProtocolState::Closing;
             }
             ProtocolState::Opened => {
-                // tld action
-                // TODO: Inform upper layers via a channel.
+                self.upper_status_tx
+                    .send(false)
+                    .expect("upper status channel is closed");
 
                 self.restart_timer.reset();
                 self.restart_counter = self.max_terminate;
@@ -352,6 +365,12 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     /// Returns the options set by the peer.
     pub fn peer(&self) -> &[O] {
         &self.peer
+    }
+
+    /// Returns a watch channel receiver that can be used to monitor whether
+    /// the `NegotiationProtocol` is in the `Opened` state.
+    pub fn opened(&self) -> watch::Receiver<bool> {
+        self.upper_status_rx.clone()
     }
 
     fn rcr_positive(&mut self, packet: Packet<O>) {
@@ -435,8 +454,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 })
                 .expect("output channel is closed"),
             ProtocolState::Opened => {
-                // tld action
-                // TODO: Inform upper layers via a channel.
+                self.upper_status_tx
+                    .send(false)
+                    .expect("upper status channel is closed");
 
                 self.restart_timer.reset();
 
@@ -522,8 +542,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.state = ProtocolState::RequestSent;
             }
             ProtocolState::Opened => {
-                // tld action
-                // TODO: Inform upper layers via a channel.
+                self.upper_status_tx
+                    .send(false)
+                    .expect("upper status channel is closed");
 
                 self.restart_timer.reset();
 
@@ -587,8 +608,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.state = ProtocolState::Opened;
             }
             ProtocolState::Opened => {
-                // tld action
-                // TODO: Inform upper layers via a channel.
+                self.upper_status_tx
+                    .send(false)
+                    .expect("upper status channel is closed");
 
                 self.restart_timer.reset();
 
@@ -670,8 +692,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.restart_counter -= 1;
             }
             ProtocolState::Opened => {
-                // tld action
-                // TODO: Inform upper layers via a channel.
+                self.upper_status_tx
+                    .send(false)
+                    .expect("upper status channel is closed");
 
                 self.restart_timer.reset();
 
@@ -721,8 +744,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.state = ProtocolState::RequestSent;
             }
             ProtocolState::Opened => {
-                // tld action
-                // TODO: Inform upper layers via a channel.
+                self.upper_status_tx
+                    .send(false)
+                    .expect("upper status channel is closed");
 
                 self.restart_counter = 0;
 
@@ -750,8 +774,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             ProtocolState::AckReceived => self.state = ProtocolState::RequestSent,
             ProtocolState::AckSent => {}
             ProtocolState::Opened => {
-                // tld action
-                // TODO: Inform upper layers via a channel.
+                self.upper_status_tx
+                    .send(false)
+                    .expect("upper status channel is closed");
 
                 self.restart_timer.reset();
 
@@ -797,8 +822,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             | ProtocolState::AckReceived
             | ProtocolState::AckSent => self.state = ProtocolState::Stopped, // tlf action
             ProtocolState::Opened => {
-                // tld action
-                // TODO: Inform upper layers via a channel.
+                self.upper_status_tx
+                    .send(false)
+                    .expect("upper status channel is closed");
 
                 self.restart_timer.reset();
                 self.restart_counter = self.max_terminate;

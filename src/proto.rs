@@ -233,7 +233,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 }
             }
             PacketType::EchoRequest => {
-                // TODO: Queue Echo-Reply transmission.
+                self.output_tx
+                    .send(Packet {
+                        ty: PacketType::EchoReply,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: 0,
+                    })
+                    .expect("output channel is closed");
             }
             PacketType::EchoReply | PacketType::DiscardRequest => {}
         }

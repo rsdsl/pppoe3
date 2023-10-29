@@ -275,7 +275,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             | ProtocolState::RequestSent
             | ProtocolState::AckReceived
             | ProtocolState::AckSent
-            | ProtocolState::Opened => {} // illegal
+            | ProtocolState::Opened => panic!("illegal state transition"),
         }
     }
 
@@ -283,7 +283,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     /// This is equivalent to the Down event.
     pub fn down(&mut self) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
+            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
             ProtocolState::Closed => self.state = ProtocolState::Initial,
             ProtocolState::Stopped => self.state = ProtocolState::Starting, // tls action
             ProtocolState::Closing => self.state = ProtocolState::Initial,
@@ -456,7 +456,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             | ProtocolState::Starting
             | ProtocolState::Closed
             | ProtocolState::Stopped
-            | ProtocolState::Opened => {} // illegal
+            | ProtocolState::Opened => panic!("illegal state transition"),
             ProtocolState::Closing => self.state = ProtocolState::Closed, // tlf action
             ProtocolState::Stopping => self.state = ProtocolState::Stopped, // tlf action
             ProtocolState::RequestSent | ProtocolState::AckReceived | ProtocolState::AckSent => {
@@ -467,7 +467,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rcr_positive(&mut self, packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
+            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
             ProtocolState::Closed => self
                 .output_tx
                 .send(Packet {
@@ -582,7 +582,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rcr_negative(&mut self, packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
+            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
             ProtocolState::Closed => self
                 .output_tx
                 .send(Packet {
@@ -663,7 +663,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rca(&mut self, _packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
+            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
             ProtocolState::Closed | ProtocolState::Stopped => self
                 .output_tx
                 .send(Packet {
@@ -725,7 +725,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rcn(&mut self, packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
+            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
             ProtocolState::Closed | ProtocolState::Stopped => self
                 .output_tx
                 .send(Packet {
@@ -811,7 +811,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rtr(&mut self, _packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
+            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
             ProtocolState::Closed
             | ProtocolState::Stopped
             | ProtocolState::Closing
@@ -860,7 +860,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rta(&mut self, _packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
+            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
             ProtocolState::Closed | ProtocolState::Stopped => {}
             ProtocolState::Closing => self.state = ProtocolState::Closed, // tlf action
             ProtocolState::Stopping => self.state = ProtocolState::Stopped, // tlf action
@@ -908,8 +908,8 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rxj_negative(&mut self, _packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
-            ProtocolState::Closed | ProtocolState::Stopped => {}   // tlf action
+            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
+            ProtocolState::Closed | ProtocolState::Stopped => {} // tlf action
             ProtocolState::Closing => self.state = ProtocolState::Closed, // tlf action
             ProtocolState::Stopping
             | ProtocolState::RequestSent

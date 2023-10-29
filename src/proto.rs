@@ -128,6 +128,8 @@ pub struct NegotiationProtocol<O: ProtocolOption> {
 
     upper_status_tx: watch::Sender<bool>,
     upper_status_rx: watch::Receiver<bool>,
+    lower_status_tx: watch::Sender<bool>,
+    lower_status_rx: watch::Receiver<bool>,
 }
 
 impl<O: ProtocolOption> NegotiationProtocol<O> {
@@ -157,6 +159,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             tokio::time::interval(restart_interval.unwrap_or(Duration::from_secs(3)));
         let (output_tx, output_rx) = mpsc::unbounded_channel();
         let (upper_status_tx, upper_status_rx) = watch::channel(false);
+        let (lower_status_tx, lower_status_rx) = watch::channel(false);
 
         Self {
             require,
@@ -186,6 +189,8 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
             upper_status_tx,
             upper_status_rx,
+            lower_status_tx,
+            lower_status_rx,
         }
     }
 
@@ -285,7 +290,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         match self.state {
             ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
             ProtocolState::Closed => self.state = ProtocolState::Initial,
-            ProtocolState::Stopped => self.state = ProtocolState::Starting, // tls action
+            ProtocolState::Stopped => {
+                self.lower_status_tx
+                    .send(true)
+                    .expect("lower status channel is closed");
+
+                self.state = ProtocolState::Starting;
+            }
             ProtocolState::Closing => self.state = ProtocolState::Initial,
             ProtocolState::Stopping => self.state = ProtocolState::Starting,
             ProtocolState::RequestSent => self.state = ProtocolState::Starting,
@@ -306,7 +317,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     pub fn open(&mut self) {
         // The [r] (restart) implementation option is not implemented.
         match self.state {
-            ProtocolState::Initial => self.state = ProtocolState::Starting, // tls action
+            ProtocolState::Initial => {
+                self.lower_status_tx
+                    .send(true)
+                    .expect("lower status channel is closed");
+
+                self.state = ProtocolState::Starting;
+            }
             ProtocolState::Starting => {}
             ProtocolState::Closed => {
                 self.restart_timer.reset();
@@ -339,7 +356,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     pub fn close(&mut self) {
         match self.state {
             ProtocolState::Initial => {}
-            ProtocolState::Starting => self.state = ProtocolState::Initial, // tlf action
+            ProtocolState::Starting => {
+                self.lower_status_tx
+                    .send(false)
+                    .expect("lower status channel is closed");
+
+                self.state = ProtocolState::Initial;
+            }
             ProtocolState::Closed => {}
             ProtocolState::Stopped => self.state = ProtocolState::Closed,
             ProtocolState::Closing => {}
@@ -404,9 +427,16 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     }
 
     /// Returns a watch channel receiver that can be used to monitor whether
-    /// the `NegotiationProtocol` is in the `Opened` state.
+    /// the `NegotiationProtocol` is in the `Opened` state and available for
+    /// upper layers to use.
     pub fn opened(&self) -> watch::Receiver<bool> {
         self.upper_status_rx.clone()
+    }
+
+    /// Returns a watch channel receiver that can be used to monitor whether
+    /// the `NegotiationProtocol` is active and requires a lower layer.
+    pub fn active(&self) -> watch::Receiver<bool> {
+        self.lower_status_rx.clone()
     }
 
     fn timeout_positive(&mut self) -> Packet<O> {
@@ -457,11 +487,27 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             | ProtocolState::Closed
             | ProtocolState::Stopped
             | ProtocolState::Opened => panic!("illegal state transition"),
-            ProtocolState::Closing => self.state = ProtocolState::Closed, // tlf action
-            ProtocolState::Stopping => self.state = ProtocolState::Stopped, // tlf action
+            ProtocolState::Closing => {
+                self.lower_status_tx
+                    .send(false)
+                    .expect("lower status channel is closed");
+
+                self.state = ProtocolState::Closed;
+            }
+            ProtocolState::Stopping => {
+                self.lower_status_tx
+                    .send(false)
+                    .expect("lower status channel is closed");
+
+                self.state = ProtocolState::Stopped;
+            }
             ProtocolState::RequestSent | ProtocolState::AckReceived | ProtocolState::AckSent => {
+                self.lower_status_tx
+                    .send(false)
+                    .expect("lower status channel is closed");
+
                 self.state = ProtocolState::Stopped
-            } // tlf action
+            }
         }
     }
 
@@ -862,8 +908,20 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         match self.state {
             ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
             ProtocolState::Closed | ProtocolState::Stopped => {}
-            ProtocolState::Closing => self.state = ProtocolState::Closed, // tlf action
-            ProtocolState::Stopping => self.state = ProtocolState::Stopped, // tlf action
+            ProtocolState::Closing => {
+                self.lower_status_tx
+                    .send(false)
+                    .expect("lower status channel is closed");
+
+                self.state = ProtocolState::Closed;
+            }
+            ProtocolState::Stopping => {
+                self.lower_status_tx
+                    .send(false)
+                    .expect("lower status channel is closed");
+
+                self.state = ProtocolState::Stopped;
+            }
             ProtocolState::RequestSent => {}
             ProtocolState::AckReceived => self.state = ProtocolState::RequestSent,
             ProtocolState::AckSent => {}
@@ -909,12 +967,27 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     fn rxj_negative(&mut self, _packet: Packet<O>) {
         match self.state {
             ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
-            ProtocolState::Closed | ProtocolState::Stopped => {} // tlf action
-            ProtocolState::Closing => self.state = ProtocolState::Closed, // tlf action
+            ProtocolState::Closed | ProtocolState::Stopped => self
+                .lower_status_tx
+                .send(false)
+                .expect("lower status channel is closed"),
+            ProtocolState::Closing => {
+                self.lower_status_tx
+                    .send(false)
+                    .expect("lower status channel is closed");
+
+                self.state = ProtocolState::Closed;
+            }
             ProtocolState::Stopping
             | ProtocolState::RequestSent
             | ProtocolState::AckReceived
-            | ProtocolState::AckSent => self.state = ProtocolState::Stopped, // tlf action
+            | ProtocolState::AckSent => {
+                self.lower_status_tx
+                    .send(false)
+                    .expect("lower status channel is closed");
+
+                self.state = ProtocolState::Stopped;
+            }
             ProtocolState::Opened => {
                 self.upper_status_tx
                     .send(false)

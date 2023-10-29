@@ -4,6 +4,8 @@ use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 use tokio::time::Interval;
 
+use ppproperly::{LcpOpt, Serialize};
+
 /// A protocol state as described in RFC 1661 section 4.2.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub enum ProtocolState {
@@ -998,8 +1000,50 @@ impl<O: ProtocolOption> ProtocolOptionNeedProtocol for &NegotiationProtocol<O> {
     }
 }
 
-impl LcpOptNeedProtocol for NegotiationProtocol<ppproperly::LcpOpt> {
+impl LcpOptNeedProtocol for NegotiationProtocol<LcpOpt> {
     fn need_protocol(&self, protocol: u16) -> bool {
-        protocol == ppproperly::LCP // TODO: Or the agreed-upon auth protocol of either peer.
+        let our_auth = self.request.iter().find_map(|option| {
+            if let LcpOpt::AuthenticationProtocol(auth_protocol) = option {
+                Some(auth_protocol)
+            } else {
+                None
+            }
+        });
+
+        let peer_auth = self.peer().iter().find_map(|option| {
+            if let LcpOpt::AuthenticationProtocol(auth_protocol) = option {
+                Some(auth_protocol)
+            } else {
+                None
+            }
+        });
+
+        let need_our = match our_auth {
+            Some(auth_protocol) => {
+                let mut buf = Vec::new();
+                match auth_protocol.serialize(&mut buf) {
+                    Ok(_) => u16::from_be_bytes(
+                        buf[..2].try_into().unwrap_or(ppproperly::LCP.to_be_bytes()),
+                    ),
+                    Err(_) => ppproperly::LCP,
+                }
+            }
+            None => ppproperly::LCP,
+        };
+
+        let need_peer = match peer_auth {
+            Some(auth_protocol) => {
+                let mut buf = Vec::new();
+                match auth_protocol.serialize(&mut buf) {
+                    Ok(_) => u16::from_be_bytes(
+                        buf[..2].try_into().unwrap_or(ppproperly::LCP.to_be_bytes()),
+                    ),
+                    Err(_) => ppproperly::LCP,
+                }
+            }
+            None => ppproperly::LCP,
+        };
+
+        protocol == ppproperly::LCP || protocol == need_our || protocol == need_peer
     }
 }

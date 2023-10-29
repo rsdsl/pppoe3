@@ -1,9 +1,8 @@
+use std::mem;
 use std::time::Duration;
 
 use tokio::sync::{mpsc, watch};
 use tokio::time::Interval;
-
-use serde::{de::DeserializeOwned, Serialize};
 
 /// A protocol state as described in RFC 1661 section 4.2.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -49,8 +48,20 @@ pub struct Packet<O: ProtocolOption> {
 }
 
 /// A generic PPP option.
-pub trait ProtocolOption: Clone + Eq + Serialize + DeserializeOwned {
-    fn has_same_type(&self, other: &Self) -> bool;
+pub trait ProtocolOption: Clone + Eq {
+    const PROTOCOL: u16;
+
+    fn has_same_type(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
+    }
+}
+
+trait ProtocolOptionNeedProtocol {
+    fn need_protocol(&self, protocol: u16) -> bool;
+}
+
+trait LcpOptNeedProtocol {
+    fn need_protocol(&self, protocol: u16) -> bool;
 }
 
 /// A set of configuration parameters for a protocol.
@@ -213,7 +224,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 }
             }
             PacketType::ProtocolReject => {
-                if self.need_protocol(packet.rejected_protocol) {
+                if (&*self).need_protocol(packet.rejected_protocol) {
                     self.rxj_negative(packet)
                 } else {
                     self.rxj_positive(packet)
@@ -884,12 +895,6 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
-    fn need_protocol(&self, protocol: u16) -> bool {
-        use ppproperly::ppp;
-
-        protocol == ppp::LCP // TODO: Or the agreed-upon auth protocol of either peer.
-    }
-
     fn configure_nak_or_reject_from_request(&mut self, packet: Packet<O>) -> Packet<O> {
         let mut nak_deny_exact: Vec<O> = self
             .deny_exact
@@ -984,5 +989,17 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     }),
                     _ => panic!("NegotiationProtocol::rcn called on packet type other than Configure-Nak or Configure-Reject"),
                 }
+    }
+}
+
+impl<O: ProtocolOption> ProtocolOptionNeedProtocol for &NegotiationProtocol<O> {
+    fn need_protocol(&self, protocol: u16) -> bool {
+        protocol == ppproperly::LCP || protocol == O::PROTOCOL
+    }
+}
+
+impl LcpOptNeedProtocol for NegotiationProtocol<ppproperly::LcpOpt> {
+    fn need_protocol(&self, protocol: u16) -> bool {
+        protocol == ppproperly::LCP // TODO: Or the agreed-upon auth protocol of either peer.
     }
 }

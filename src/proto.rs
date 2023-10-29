@@ -430,8 +430,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.state = ProtocolState::AckSent;
             }
             ProtocolState::AckReceived => {
-                // tlu action
-                // TODO: Inform upper layers via a channel.
+                self.upper_status_tx
+                    .send(true)
+                    .expect("upper status channel is closed");
 
                 self.output_tx
                     .send(Packet {
@@ -601,8 +602,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.state = ProtocolState::RequestSent;
             }
             ProtocolState::AckSent => {
-                // tlu action
-                // TODO: Inform upper layers via a channel.
+                self.upper_status_tx
+                    .send(true)
+                    .expect("upper status channel is closed");
 
                 self.restart_counter = self.max_configure;
                 self.state = ProtocolState::Opened;

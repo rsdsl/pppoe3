@@ -191,14 +191,15 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     /// Waits for and returns the next packet to send.
     pub async fn to_send(&mut self) -> Packet<O> {
-        // TODO:
-        // select!:
-        // Pass on packets from channel populated by from_recv.
-        // Watch timers and counters.
-        // Mutate state if necessary.
-
-        tokio::select! {
-            packet = self.output_rx.recv() => packet.expect("output channel is closed"),
+        loop {
+            tokio::select! {
+                packet = self.output_rx.recv() => return packet.expect("output channel is closed"),
+                _ = self.restart_timer.tick() => if self.restart_counter > 0 { // TO+ event
+                    return self.timeout_positive();
+                } else { // TO- event
+                    self.timeout_negative();
+                }
+            }
         }
     }
 
@@ -406,6 +407,62 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     /// the `NegotiationProtocol` is in the `Opened` state.
     pub fn opened(&self) -> watch::Receiver<bool> {
         self.upper_status_rx.clone()
+    }
+
+    fn timeout_positive(&mut self) -> Packet<O> {
+        match self.state {
+            ProtocolState::Initial
+            | ProtocolState::Starting
+            | ProtocolState::Closed
+            | ProtocolState::Stopped
+            | ProtocolState::Opened => panic!("illegal state transition"),
+            ProtocolState::Closing | ProtocolState::Stopping => {
+                self.restart_counter -= 1;
+
+                Packet {
+                    ty: PacketType::TerminateRequest,
+                    options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                }
+            }
+            ProtocolState::RequestSent | ProtocolState::AckSent => {
+                self.restart_counter -= 1;
+
+                Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                }
+            }
+            ProtocolState::AckReceived => {
+                self.restart_counter -= 1;
+                self.state = ProtocolState::RequestSent;
+
+                Packet {
+                    ty: PacketType::ConfigureRequest,
+                    options: self.request.clone(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: 0,
+                }
+            }
+        }
+    }
+
+    fn timeout_negative(&mut self) {
+        match self.state {
+            ProtocolState::Initial
+            | ProtocolState::Starting
+            | ProtocolState::Closed
+            | ProtocolState::Stopped
+            | ProtocolState::Opened => {} // illegal
+            ProtocolState::Closing => self.state = ProtocolState::Closed, // tlf action
+            ProtocolState::Stopping => self.state = ProtocolState::Stopped, // tlf action
+            ProtocolState::RequestSent | ProtocolState::AckReceived | ProtocolState::AckSent => {
+                self.state = ProtocolState::Stopped
+            } // tlf action
+        }
     }
 
     fn rcr_positive(&mut self, packet: Packet<O>) {

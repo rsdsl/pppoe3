@@ -493,311 +493,31 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .expect("output channel is closed");
                 self.restart_counter -= 1;
 
-                let mut nak_deny_exact: Vec<O> = self
-                    .deny_exact
-                    .iter()
-                    .cloned()
-                    .filter_map(|(denied, suggest)| {
-                        if let Some(option) =
-                            packet.options.iter().find(|&option| *option == denied)
-                        {
-                            Some(if self.failure < self.max_failure {
-                                suggest
-                            } else {
-                                option.clone()
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                let mut nak_require: Vec<O> = self
-                    .require
-                    .iter()
-                    .cloned()
-                    .filter(|required| {
-                        !packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(required))
-                    })
-                    .collect();
-
-                if self.failure < self.max_failure {
-                    nak_deny_exact.append(&mut nak_require)
-                };
-                let nak = nak_deny_exact;
-
-                let reject_deny = self
-                    .deny
-                    .iter()
-                    .cloned()
-                    .filter(|denied| {
-                        packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(denied))
-                    })
-                    .collect();
-
-                let reject = reject_deny;
-
-                if !nak.is_empty() {
-                    self.output_tx
-                        .send(Packet {
-                            ty: if self.failure < self.max_failure {
-                                PacketType::ConfigureNak
-                            } else {
-                                PacketType::ConfigureReject
-                            },
-                            options: nak,
-                            rejected_code: PacketType::Unknown,
-                            rejected_protocol: 0,
-                        })
-                        .expect("output channel is closed");
-                } else {
-                    // No check, this function is only called if something is inacceptable.
-                    self.output_tx
-                        .send(Packet {
-                            ty: PacketType::ConfigureReject,
-                            options: reject,
-                            rejected_code: PacketType::Unknown,
-                            rejected_protocol: 0,
-                        })
-                        .expect("output channel is closed");
-                }
+                let response = self.configure_nak_or_reject_from_request(packet);
+                self.output_tx
+                    .send(response)
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::RequestSent;
             }
             ProtocolState::Closing | ProtocolState::Stopping => {}
             ProtocolState::RequestSent => {
-                let mut nak_deny_exact: Vec<O> = self
-                    .deny_exact
-                    .iter()
-                    .cloned()
-                    .filter_map(|(denied, suggest)| {
-                        if let Some(option) =
-                            packet.options.iter().find(|&option| *option == denied)
-                        {
-                            Some(if self.failure < self.max_failure {
-                                suggest
-                            } else {
-                                option.clone()
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                let mut nak_require: Vec<O> = self
-                    .require
-                    .iter()
-                    .cloned()
-                    .filter(|required| {
-                        !packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(required))
-                    })
-                    .collect();
-
-                if self.failure < self.max_failure {
-                    nak_deny_exact.append(&mut nak_require)
-                };
-                let nak = nak_deny_exact;
-
-                let reject_deny = self
-                    .deny
-                    .iter()
-                    .cloned()
-                    .filter(|denied| {
-                        packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(denied))
-                    })
-                    .collect();
-
-                let reject = reject_deny;
-
-                if !nak.is_empty() {
-                    self.output_tx
-                        .send(Packet {
-                            ty: if self.failure < self.max_failure {
-                                PacketType::ConfigureNak
-                            } else {
-                                PacketType::ConfigureReject
-                            },
-                            options: nak,
-                            rejected_code: PacketType::Unknown,
-                            rejected_protocol: 0,
-                        })
-                        .expect("output channel is closed");
-                } else {
-                    // No check, this function is only called if something is inacceptable.
-                    self.output_tx
-                        .send(Packet {
-                            ty: PacketType::ConfigureReject,
-                            options: reject,
-                            rejected_code: PacketType::Unknown,
-                            rejected_protocol: 0,
-                        })
-                        .expect("output channel is closed");
-                }
+                let response = self.configure_nak_or_reject_from_request(packet);
+                self.output_tx
+                    .send(response)
+                    .expect("output channel is closed");
             }
             ProtocolState::AckReceived => {
-                let mut nak_deny_exact: Vec<O> = self
-                    .deny_exact
-                    .iter()
-                    .cloned()
-                    .filter_map(|(denied, suggest)| {
-                        if let Some(option) =
-                            packet.options.iter().find(|&option| *option == denied)
-                        {
-                            Some(if self.failure < self.max_failure {
-                                suggest
-                            } else {
-                                option.clone()
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                let mut nak_require: Vec<O> = self
-                    .require
-                    .iter()
-                    .cloned()
-                    .filter(|required| {
-                        !packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(required))
-                    })
-                    .collect();
-
-                if self.failure < self.max_failure {
-                    nak_deny_exact.append(&mut nak_require)
-                };
-                let nak = nak_deny_exact;
-
-                let reject_deny = self
-                    .deny
-                    .iter()
-                    .cloned()
-                    .filter(|denied| {
-                        packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(denied))
-                    })
-                    .collect();
-
-                let reject = reject_deny;
-
-                if !nak.is_empty() {
-                    self.output_tx
-                        .send(Packet {
-                            ty: if self.failure < self.max_failure {
-                                PacketType::ConfigureNak
-                            } else {
-                                PacketType::ConfigureReject
-                            },
-                            options: nak,
-                            rejected_code: PacketType::Unknown,
-                            rejected_protocol: 0,
-                        })
-                        .expect("output channel is closed");
-                } else {
-                    // No check, this function is only called if something is inacceptable.
-                    self.output_tx
-                        .send(Packet {
-                            ty: PacketType::ConfigureReject,
-                            options: reject,
-                            rejected_code: PacketType::Unknown,
-                            rejected_protocol: 0,
-                        })
-                        .expect("output channel is closed");
-                }
+                let response = self.configure_nak_or_reject_from_request(packet);
+                self.output_tx
+                    .send(response)
+                    .expect("output channel is closed");
             }
             ProtocolState::AckSent => {
-                let mut nak_deny_exact: Vec<O> = self
-                    .deny_exact
-                    .iter()
-                    .cloned()
-                    .filter_map(|(denied, suggest)| {
-                        if let Some(option) =
-                            packet.options.iter().find(|&option| *option == denied)
-                        {
-                            Some(if self.failure < self.max_failure {
-                                suggest
-                            } else {
-                                option.clone()
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                let mut nak_require: Vec<O> = self
-                    .require
-                    .iter()
-                    .cloned()
-                    .filter(|required| {
-                        !packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(required))
-                    })
-                    .collect();
-
-                if self.failure < self.max_failure {
-                    nak_deny_exact.append(&mut nak_require)
-                };
-                let nak = nak_deny_exact;
-
-                let reject_deny = self
-                    .deny
-                    .iter()
-                    .cloned()
-                    .filter(|denied| {
-                        packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(denied))
-                    })
-                    .collect();
-
-                let reject = reject_deny;
-
-                if !nak.is_empty() {
-                    self.output_tx
-                        .send(Packet {
-                            ty: if self.failure < self.max_failure {
-                                PacketType::ConfigureNak
-                            } else {
-                                PacketType::ConfigureReject
-                            },
-                            options: nak,
-                            rejected_code: PacketType::Unknown,
-                            rejected_protocol: 0,
-                        })
-                        .expect("output channel is closed");
-                } else {
-                    // No check, this function is only called if something is inacceptable.
-                    self.output_tx
-                        .send(Packet {
-                            ty: PacketType::ConfigureReject,
-                            options: reject,
-                            rejected_code: PacketType::Unknown,
-                            rejected_protocol: 0,
-                        })
-                        .expect("output channel is closed");
-                }
+                let response = self.configure_nak_or_reject_from_request(packet);
+                self.output_tx
+                    .send(response)
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::RequestSent;
             }
@@ -817,80 +537,10 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .expect("output channel is closed");
                 self.restart_counter -= 1;
 
-                let mut nak_deny_exact: Vec<O> = self
-                    .deny_exact
-                    .iter()
-                    .cloned()
-                    .filter_map(|(denied, suggest)| {
-                        if let Some(option) =
-                            packet.options.iter().find(|&option| *option == denied)
-                        {
-                            Some(if self.failure < self.max_failure {
-                                suggest
-                            } else {
-                                option.clone()
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                let mut nak_require: Vec<O> = self
-                    .require
-                    .iter()
-                    .cloned()
-                    .filter(|required| {
-                        !packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(required))
-                    })
-                    .collect();
-
-                if self.failure < self.max_failure {
-                    nak_deny_exact.append(&mut nak_require)
-                };
-                let nak = nak_deny_exact;
-
-                let reject_deny = self
-                    .deny
-                    .iter()
-                    .cloned()
-                    .filter(|denied| {
-                        packet
-                            .options
-                            .iter()
-                            .any(|option| option.has_same_type(denied))
-                    })
-                    .collect();
-
-                let reject = reject_deny;
-
-                if !nak.is_empty() {
-                    self.output_tx
-                        .send(Packet {
-                            ty: if self.failure < self.max_failure {
-                                PacketType::ConfigureNak
-                            } else {
-                                PacketType::ConfigureReject
-                            },
-                            options: nak,
-                            rejected_code: PacketType::Unknown,
-                            rejected_protocol: 0,
-                        })
-                        .expect("output channel is closed");
-                } else {
-                    // No check, this function is only called if something is inacceptable.
-                    self.output_tx
-                        .send(Packet {
-                            ty: PacketType::ConfigureReject,
-                            options: reject,
-                            rejected_code: PacketType::Unknown,
-                            rejected_protocol: 0,
-                        })
-                        .expect("output channel is closed");
-                }
+                let response = self.configure_nak_or_reject_from_request(packet);
+                self.output_tx
+                    .send(response)
+                    .expect("output channel is closed");
 
                 self.state = ProtocolState::RequestSent;
             }
@@ -974,28 +624,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_configure;
 
-                let mut accepted_naks = packet.options.iter().filter(|&option| {
-                    !self
-                        .refuse
-                        .iter()
-                        .any(|refused| refused.has_same_type(option))
-                        && !self.refuse_exact.iter().any(|refused| *refused == *option)
-                });
-
-                match packet.ty {
-                    PacketType::ConfigureNak => {
-                        for option in self.request.iter_mut() {
-                            if let Some(nak) = accepted_naks.find(|nak| nak.has_same_type(option)) {
-                                *option = nak.clone();
-                            }
-                        }
-                    }
-                    PacketType::ConfigureReject => self.request.retain(|option| {
-                        !accepted_naks
-                            .any(|nak| nak.has_same_type(option))
-                    }),
-                    _ => panic!("NegotiationProtocol::rcn called on packet type other than Configure-Nak or Configure-Reject"),
-                }
+                self.process_configure_nak_or_reject(packet);
 
                 self.output_tx
                     .send(Packet {
@@ -1010,19 +639,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             ProtocolState::AckReceived => {
                 self.restart_timer.reset();
 
-                let mut accepted_naks = packet.options.iter().filter(|&option| {
-                    !self
-                        .refuse
-                        .iter()
-                        .any(|refused| refused.has_same_type(option))
-                        && !self.refuse_exact.iter().any(|refused| *refused == *option)
-                });
-
-                for option in self.request.iter_mut() {
-                    if let Some(nak) = accepted_naks.find(|nak| nak.has_same_type(option)) {
-                        *option = nak.clone();
-                    }
-                }
+                self.process_configure_nak_or_reject(packet);
 
                 self.output_tx
                     .send(Packet {
@@ -1040,19 +657,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_configure;
 
-                let mut accepted_naks = packet.options.iter().filter(|&option| {
-                    !self
-                        .refuse
-                        .iter()
-                        .any(|refused| refused.has_same_type(option))
-                        && !self.refuse_exact.iter().any(|refused| *refused == *option)
-                });
-
-                for option in self.request.iter_mut() {
-                    if let Some(nak) = accepted_naks.find(|nak| nak.has_same_type(option)) {
-                        *option = nak.clone();
-                    }
-                }
+                self.process_configure_nak_or_reject(packet);
 
                 self.output_tx
                     .send(Packet {
@@ -1070,19 +675,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
                 self.restart_timer.reset();
 
-                let mut accepted_naks = packet.options.iter().filter(|&option| {
-                    !self
-                        .refuse
-                        .iter()
-                        .any(|refused| refused.has_same_type(option))
-                        && !self.refuse_exact.iter().any(|refused| *refused == *option)
-                });
-
-                for option in self.request.iter_mut() {
-                    if let Some(nak) = accepted_naks.find(|nak| nak.has_same_type(option)) {
-                        *option = nak.clone();
-                    }
-                }
+                self.process_configure_nak_or_reject(packet);
 
                 self.output_tx
                     .send(Packet {
@@ -1267,5 +860,101 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         use ppproperly::ppp;
 
         protocol == ppp::LCP // TODO: Or the agreed-upon auth protocol of either peer.
+    }
+
+    fn configure_nak_or_reject_from_request(&mut self, packet: Packet<O>) -> Packet<O> {
+        let mut nak_deny_exact: Vec<O> = self
+            .deny_exact
+            .iter()
+            .cloned()
+            .filter_map(|(denied, suggest)| {
+                if let Some(option) = packet.options.iter().find(|&option| *option == denied) {
+                    Some(if self.failure < self.max_failure {
+                        suggest
+                    } else {
+                        option.clone()
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let mut nak_require: Vec<O> = self
+            .require
+            .iter()
+            .cloned()
+            .filter(|required| {
+                !packet
+                    .options
+                    .iter()
+                    .any(|option| option.has_same_type(required))
+            })
+            .collect();
+
+        if self.failure < self.max_failure {
+            nak_deny_exact.append(&mut nak_require)
+        };
+        let nak = nak_deny_exact;
+
+        let reject_deny = self
+            .deny
+            .iter()
+            .cloned()
+            .filter(|denied| {
+                packet
+                    .options
+                    .iter()
+                    .any(|option| option.has_same_type(denied))
+            })
+            .collect();
+
+        let reject = reject_deny;
+
+        if !nak.is_empty() {
+            Packet {
+                ty: if self.failure < self.max_failure {
+                    PacketType::ConfigureNak
+                } else {
+                    PacketType::ConfigureReject
+                },
+                options: nak,
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            }
+        } else {
+            // No check, this function is only called if something is inacceptable.
+            Packet {
+                ty: PacketType::ConfigureReject,
+                options: reject,
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            }
+        }
+    }
+
+    fn process_configure_nak_or_reject(&mut self, packet: Packet<O>) {
+        let mut accepted_naks = packet.options.iter().filter(|&option| {
+            !self
+                .refuse
+                .iter()
+                .any(|refused| refused.has_same_type(option))
+                && !self.refuse_exact.iter().any(|refused| *refused == *option)
+        });
+
+        match packet.ty {
+                    PacketType::ConfigureNak => {
+                        for option in self.request.iter_mut() {
+                            if let Some(nak) = accepted_naks.find(|nak| nak.has_same_type(option)) {
+                                *option = nak.clone();
+                            }
+                        }
+                    }
+                    PacketType::ConfigureReject => self.request.retain(|option| {
+                        !accepted_naks
+                            .any(|nak| nak.has_same_type(option))
+                    }),
+                    _ => panic!("NegotiationProtocol::rcn called on packet type other than Configure-Nak or Configure-Reject"),
+                }
     }
 }

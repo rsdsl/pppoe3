@@ -382,6 +382,21 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         }
     }
 
+    /// Reports whether the `NegotiationProtocol` is in the `Closed` state.
+    pub fn is_closed(&self) -> bool {
+        self.state == ProtocolState::Closed
+    }
+
+    /// Reports whether the `NegotiationProtocol` is in the `Stopped` state.
+    pub fn is_stopped(&self) -> bool {
+        self.state == ProtocolState::Stopped
+    }
+
+    /// Reports whether the `NegotiationProtocol` is in an involuntary closed state.
+    pub fn is_shut_down(&self) -> bool {
+        self.is_closed() || self.is_stopped()
+    }
+
     /// Returns the options set by the peer.
     pub fn peer(&self) -> &[O] {
         &self.peer

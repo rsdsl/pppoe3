@@ -210,7 +210,11 @@ impl PapClient {
             }
             PapClientState::Closed | PapClientState::Stopped => {}
             PapClientState::RequestSent | PapClientState::Failed => {
-                self.state = PapClientState::Opened
+                self.upper_status_tx
+                    .send(true)
+                    .expect("upper status channel is closed");
+
+                self.state = PapClientState::Opened;
             }
             PapClientState::Opened => {}
         }

@@ -219,7 +219,6 @@ dependencies = [
  "rsdsl_ip_config",
  "serde",
  "serde_json",
- "thiserror",
  "tokio",
 ]
 

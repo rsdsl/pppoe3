@@ -10,5 +10,4 @@ ppproperly = { git = "https://github.com/rsdsl/ppproperly.git", version = "0.1.0
 rsdsl_ip_config = { git = "https://github.com/rsdsl/ip_config.git", version = "0.2.3" }
 serde = "1.0"
 serde_json = "1.0"
-thiserror = "1.0"
 tokio = { version = "1.0", features = ["rt-multi-thread", "macros", "sync", "time"] }

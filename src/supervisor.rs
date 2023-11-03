@@ -61,7 +61,7 @@ impl SessionFds {
     }
 }
 
-/// A client control instance for full dual stack PPPoE sessions.
+/// A client control instance for dual stack PPPoE sessions and all involved protocols.
 #[derive(Debug)]
 pub struct Client {
     link: String,
@@ -171,7 +171,8 @@ impl Client {
         }
     }
 
-    /// Runs the connection. Blocks the caller forever unless a panic occurs.
+    /// Tries to keep a session open at all costs.
+    /// Blocks the caller forever unless a panic occurs.
     pub fn run(&self) {
         let sock_disc = self.new_discovery_socket();
     }

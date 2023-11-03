@@ -2,6 +2,7 @@ use std::{ffi, io};
 
 use thiserror::Error;
 
+/// An external error that prevents a supervisor from functioning.
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("io: {0}")]
@@ -10,4 +11,5 @@ pub enum Error {
     Nul(#[from] ffi::NulError),
 }
 
+/// An alias for a [`std::result::Result`] with the [`enum@Error`] type of this crate.
 pub type Result<T> = std::result::Result<T, Error>;

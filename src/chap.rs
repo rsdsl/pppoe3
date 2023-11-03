@@ -1,3 +1,5 @@
+//! Utilities for handling CHAP state.
+
 use std::time::Duration;
 
 use tokio::sync::{mpsc, watch};

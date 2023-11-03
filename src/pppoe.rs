@@ -1,3 +1,5 @@
+//! Utilities for handling PPPoE Discovery state.
+
 use std::time::Duration;
 
 use tokio::sync::{mpsc, watch};

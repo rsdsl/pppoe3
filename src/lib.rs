@@ -1,13 +1,21 @@
 mod error;
 pub use error::*;
 
-mod proto;
+pub mod proto;
 pub use proto::*;
 
 pub mod chap;
-pub mod ipcp;
-pub mod ipv6cp;
-pub mod lcp;
+pub use chap::*;
+
+mod ipcp;
+mod ipv6cp;
+mod lcp;
+
 pub mod pap;
+pub use pap::*;
+
 pub mod pppoe;
-pub mod supervisor;
+pub use pppoe::*;
+
+mod supervisor;
+pub use supervisor::*;

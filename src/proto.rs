@@ -1,3 +1,6 @@
+//! Generic Option Negotiation protocol implementation
+//! for LCP, IPCP, IPv6CP and possibly more.
+
 use std::mem;
 use std::time::Duration;
 
@@ -51,8 +54,12 @@ pub struct Packet<O: ProtocolOption> {
 
 /// A generic PPP option.
 pub trait ProtocolOption: Clone + Eq {
+    /// The ID of the protocol in question.
     const PROTOCOL: u16;
 
+    /// Reports whether two `ProtocolOption` implementors of the same type
+    /// share the same variant.
+    /// The default implementation compares enum discriminants.
     fn has_same_type(&self, other: &Self) -> bool {
         mem::discriminant(self) == mem::discriminant(other)
     }

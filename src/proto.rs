@@ -200,7 +200,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             tokio::select! {
                 packet = self.output_rx.recv() => return packet.expect("output channel is closed"),
                 _ = self.restart_timer.tick() => if self.restart_counter > 0 { // TO+ event
-                    return self.timeout_positive();
+                    if let Some(packet) = self.timeout_positive() { return packet; }
                 } else { // TO- event
                     self.timeout_negative();
                 }
@@ -280,7 +280,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             | ProtocolState::RequestSent
             | ProtocolState::AckReceived
             | ProtocolState::AckSent
-            | ProtocolState::Opened => panic!("illegal state transition"),
+            | ProtocolState::Opened => {} // illegal
         }
     }
 
@@ -288,7 +288,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
     /// This is equivalent to the Down event.
     pub fn down(&mut self) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed => self.state = ProtocolState::Initial,
             ProtocolState::Stopped => {
                 self.lower_status_tx
@@ -439,43 +439,43 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         self.lower_status_rx.clone()
     }
 
-    fn timeout_positive(&mut self) -> Packet<O> {
+    fn timeout_positive(&mut self) -> Option<Packet<O>> {
         match self.state {
             ProtocolState::Initial
             | ProtocolState::Starting
             | ProtocolState::Closed
             | ProtocolState::Stopped
-            | ProtocolState::Opened => panic!("illegal state transition"),
+            | ProtocolState::Opened => None, // illegal
             ProtocolState::Closing | ProtocolState::Stopping => {
                 self.restart_counter -= 1;
 
-                Packet {
+                Some(Packet {
                     ty: PacketType::TerminateRequest,
                     options: Vec::default(),
                     rejected_code: PacketType::Unknown,
                     rejected_protocol: 0,
-                }
+                })
             }
             ProtocolState::RequestSent | ProtocolState::AckSent => {
                 self.restart_counter -= 1;
 
-                Packet {
+                Some(Packet {
                     ty: PacketType::ConfigureRequest,
                     options: self.request.clone(),
                     rejected_code: PacketType::Unknown,
                     rejected_protocol: 0,
-                }
+                })
             }
             ProtocolState::AckReceived => {
                 self.restart_counter -= 1;
                 self.state = ProtocolState::RequestSent;
 
-                Packet {
+                Some(Packet {
                     ty: PacketType::ConfigureRequest,
                     options: self.request.clone(),
                     rejected_code: PacketType::Unknown,
                     rejected_protocol: 0,
-                }
+                })
             }
         }
     }
@@ -486,7 +486,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             | ProtocolState::Starting
             | ProtocolState::Closed
             | ProtocolState::Stopped
-            | ProtocolState::Opened => panic!("illegal state transition"),
+            | ProtocolState::Opened => {} // illegal
             ProtocolState::Closing => {
                 self.lower_status_tx
                     .send(false)
@@ -513,7 +513,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rcr_positive(&mut self, packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed => self
                 .output_tx
                 .send(Packet {
@@ -628,7 +628,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rcr_negative(&mut self, packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed => self
                 .output_tx
                 .send(Packet {
@@ -709,7 +709,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rca(&mut self, _packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed | ProtocolState::Stopped => self
                 .output_tx
                 .send(Packet {
@@ -771,7 +771,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rcn(&mut self, packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed | ProtocolState::Stopped => self
                 .output_tx
                 .send(Packet {
@@ -857,7 +857,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rtr(&mut self, _packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed
             | ProtocolState::Stopped
             | ProtocolState::Closing
@@ -906,7 +906,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rta(&mut self, _packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed | ProtocolState::Stopped => {}
             ProtocolState::Closing => {
                 self.lower_status_tx
@@ -966,7 +966,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
 
     fn rxj_negative(&mut self, _packet: Packet<O>) {
         match self.state {
-            ProtocolState::Initial | ProtocolState::Starting => panic!("illegal state transition"),
+            ProtocolState::Initial | ProtocolState::Starting => {} // illegal
             ProtocolState::Closed | ProtocolState::Stopped => self
                 .lower_status_tx
                 .send(false)

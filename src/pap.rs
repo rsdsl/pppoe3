@@ -80,12 +80,12 @@ impl PapClient {
 
     /// Waits for and returns the next packet to send.
     pub async fn to_send(&mut self) -> PapPacket {
-        tokio::select! {
-            packet = self.output_rx.recv() => packet.expect("output channel is closed"),
-            _ = self.restart_timer.tick() => if self.restart_counter > 0 {
-                self.timeout_positive()
-            } else {
-                self.timeout_negative()
+        loop {
+            tokio::select! {
+                packet = self.output_rx.recv() => return packet.expect("output channel is closed"),
+                _ = self.restart_timer.tick() => if self.restart_counter > 0 {
+                    if let Some(packet) = self.timeout_positive() { return packet; }
+                } else if let Some(packet) = self.timeout_negative() { return packet; }
             }
         }
     }
@@ -94,9 +94,7 @@ impl PapClient {
     /// Can trigger the RAA or RAN events.
     pub fn from_recv(&mut self, packet: PapPacket) {
         match packet {
-            PapPacket::AuthenticateRequest | PapPacket::TerminateLower => {
-                panic!("illegal state transition")
-            }
+            PapPacket::AuthenticateRequest | PapPacket::TerminateLower => {} // illegal
             PapPacket::AuthenticateAck => self.raa(),
             PapPacket::AuthenticateNak => self.ran(),
         }
@@ -122,7 +120,7 @@ impl PapClient {
             | PapClientState::Stopped
             | PapClientState::RequestSent
             | PapClientState::Failed
-            | PapClientState::Opened => panic!("illegal state transition"),
+            | PapClientState::Opened => {} // illegal
         }
     }
 
@@ -130,9 +128,7 @@ impl PapClient {
     /// This is equivalent to the Down event.
     pub fn down(&mut self) {
         match self.state {
-            PapClientState::Initial | PapClientState::Starting => {
-                panic!("illegal state transition")
-            }
+            PapClientState::Initial | PapClientState::Starting => {} // illegal
             PapClientState::Closed => self.state = PapClientState::Initial,
             PapClientState::Stopped => self.state = PapClientState::Starting,
             PapClientState::RequestSent => self.state = PapClientState::Starting,
@@ -172,7 +168,7 @@ impl PapClient {
     /// This is equivalent to the Close event.
     pub fn close(&mut self) {
         match self.state {
-            PapClientState::Initial | PapClientState::Closed => panic!("illegal state transition"),
+            PapClientState::Initial | PapClientState::Closed => {} // illegal
             PapClientState::Starting => self.state = PapClientState::Initial,
             PapClientState::Stopped
             | PapClientState::RequestSent
@@ -187,41 +183,39 @@ impl PapClient {
         self.upper_status_rx.clone()
     }
 
-    fn timeout_positive(&mut self) -> PapPacket {
+    fn timeout_positive(&mut self) -> Option<PapPacket> {
         match self.state {
             PapClientState::Initial
             | PapClientState::Starting
             | PapClientState::Closed
             | PapClientState::Stopped
             | PapClientState::Failed
-            | PapClientState::Opened => panic!("illegal state transition"),
+            | PapClientState::Opened => None, // illegal
             PapClientState::RequestSent => {
                 self.restart_counter -= 1;
-                PapPacket::AuthenticateRequest
+                Some(PapPacket::AuthenticateRequest)
             }
         }
     }
 
-    fn timeout_negative(&mut self) -> PapPacket {
+    fn timeout_negative(&mut self) -> Option<PapPacket> {
         match self.state {
             PapClientState::Initial
             | PapClientState::Starting
             | PapClientState::Closed
             | PapClientState::Stopped
             | PapClientState::Failed
-            | PapClientState::Opened => panic!("illegal state transition"),
+            | PapClientState::Opened => None, // illegal
             PapClientState::RequestSent => {
                 self.state = PapClientState::Failed;
-                PapPacket::TerminateLower
+                Some(PapPacket::TerminateLower)
             }
         }
     }
 
     fn raa(&mut self) {
         match self.state {
-            PapClientState::Initial | PapClientState::Starting => {
-                panic!("illegal state transition")
-            }
+            PapClientState::Initial | PapClientState::Starting => {} // illegal
             PapClientState::Closed
             | PapClientState::Stopped
             | PapClientState::Failed
@@ -238,9 +232,7 @@ impl PapClient {
 
     fn ran(&mut self) {
         match self.state {
-            PapClientState::Initial | PapClientState::Starting => {
-                panic!("illegal state transition")
-            }
+            PapClientState::Initial | PapClientState::Starting => {} // illegal
             PapClientState::Closed | PapClientState::Stopped | PapClientState::Failed => {}
             PapClientState::RequestSent | PapClientState::Opened => {
                 self.output_tx

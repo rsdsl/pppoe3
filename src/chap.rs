@@ -94,10 +94,9 @@ impl ChapClient {
     pub fn from_recv(&mut self, packet: ChapPacket) {
         match packet.ty {
             ChapType::Challenge => self.rc(packet),
-            ChapType::Response => panic!("illegal state transition"),
+            ChapType::Response | ChapType::TerminateLower => {} // illegal
             ChapType::Success => self.rs(),
             ChapType::Failure => self.rf(),
-            ChapType::TerminateLower => panic!("must not process signal packets"),
         }
     }
 
@@ -116,7 +115,7 @@ impl ChapClient {
             | ChapClientState::ResponseSent
             | ChapClientState::ReauthSent
             | ChapClientState::Failed
-            | ChapClientState::Opened => panic!("illegal state transition"),
+            | ChapClientState::Opened => {} // illegal
         }
     }
 
@@ -124,9 +123,7 @@ impl ChapClient {
     /// This is equivalent to the Down event.
     pub fn down(&mut self) {
         match self.state {
-            ChapClientState::Initial | ChapClientState::Starting => {
-                panic!("illegal state transition")
-            }
+            ChapClientState::Initial | ChapClientState::Starting => {} // illegal
             ChapClientState::Closed => self.state = ChapClientState::Initial,
             ChapClientState::Stopped
             | ChapClientState::Waiting
@@ -166,9 +163,7 @@ impl ChapClient {
     /// This is equivalent to the Close event.
     pub fn close(&mut self) {
         match self.state {
-            ChapClientState::Initial | ChapClientState::Closed => {
-                panic!("illegal state transition")
-            }
+            ChapClientState::Initial | ChapClientState::Closed => {} // illegal
             ChapClientState::Starting => self.state = ChapClientState::Initial,
             ChapClientState::Stopped
             | ChapClientState::Waiting
@@ -197,9 +192,7 @@ impl ChapClient {
 
     fn rc(&mut self, packet: ChapPacket) {
         match self.state {
-            ChapClientState::Initial | ChapClientState::Starting => {
-                panic!("illegal state transition")
-            }
+            ChapClientState::Initial | ChapClientState::Starting => {} // illegal
             ChapClientState::Closed | ChapClientState::Stopped | ChapClientState::Failed => {}
             ChapClientState::Waiting
             | ChapClientState::ResponseSent
@@ -230,9 +223,7 @@ impl ChapClient {
 
     fn rs(&mut self) {
         match self.state {
-            ChapClientState::Initial | ChapClientState::Starting => {
-                panic!("illegal state transition")
-            }
+            ChapClientState::Initial | ChapClientState::Starting => {} // illegal
             ChapClientState::Closed
             | ChapClientState::Stopped
             | ChapClientState::Failed
@@ -251,9 +242,7 @@ impl ChapClient {
 
     fn rf(&mut self) {
         match self.state {
-            ChapClientState::Initial | ChapClientState::Starting => {
-                panic!("illegal state transition")
-            }
+            ChapClientState::Initial | ChapClientState::Starting => {} // illegal
             ChapClientState::Closed | ChapClientState::Stopped | ChapClientState::Failed => {}
             ChapClientState::Waiting
             | ChapClientState::ResponseSent

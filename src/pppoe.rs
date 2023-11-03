@@ -90,7 +90,7 @@ impl PppoeClient {
             tokio::select! {
                 packet = self.output_rx.recv() => return packet.expect("output channel is closed"),
                 _ = self.restart_timer.tick() => if self.restart_counter > 0 {
-                    return self.timeout_positive();
+                    if let Some(packet) = self.timeout_positive() { return packet; }
                 } else {
                     self.timeout_negative();
                 }
@@ -102,7 +102,7 @@ impl PppoeClient {
     /// Can trigger the RPO, RPS or RPT events.
     pub fn from_recv(&mut self, packet: PppoePacket) {
         match packet.ty {
-            PppoeType::Padi | PppoeType::Padr => panic!("illegal state transition"),
+            PppoeType::Padi | PppoeType::Padr => {} // illegal
             PppoeType::Pado => self.rpo(packet),
             PppoeType::Pads => self.rps(),
             PppoeType::Padt => self.rpt(),
@@ -116,7 +116,7 @@ impl PppoeClient {
             PppoeClientState::Closed => {}
             PppoeClientState::InitiationSent
             | PppoeClientState::RequestSent
-            | PppoeClientState::Active => panic!("illegal state transition"),
+            | PppoeClientState::Active => {} // illegal
         }
     }
 
@@ -124,7 +124,7 @@ impl PppoeClient {
     /// This is equivalent to the Close event.
     pub fn close(&mut self) {
         match self.state {
-            PppoeClientState::Closed => panic!("illegal state transition"),
+            PppoeClientState::Closed => {} // illegal
             PppoeClientState::InitiationSent | PppoeClientState::RequestSent => {
                 self.state = PppoeClientState::Closed
             }
@@ -148,21 +148,19 @@ impl PppoeClient {
         self.upper_status_rx.clone()
     }
 
-    fn timeout_positive(&mut self) -> PppoePacket {
+    fn timeout_positive(&mut self) -> Option<PppoePacket> {
         match self.state {
-            PppoeClientState::Closed | PppoeClientState::Active => {
-                panic!("illegal state transition")
-            }
-            PppoeClientState::InitiationSent => PppoePacket {
+            PppoeClientState::Closed | PppoeClientState::Active => None, // illegal
+            PppoeClientState::InitiationSent => Some(PppoePacket {
                 ty: PppoeType::Padi,
                 ac_cookie: None,
-            },
+            }),
             PppoeClientState::RequestSent => {
                 self.restart_counter -= 1;
-                PppoePacket {
+                Some(PppoePacket {
                     ty: PppoeType::Padr,
                     ac_cookie: self.ac_cookie.clone(),
-                }
+                })
             }
         }
     }
@@ -171,7 +169,7 @@ impl PppoeClient {
         match self.state {
             PppoeClientState::Closed
             | PppoeClientState::InitiationSent
-            | PppoeClientState::Active => panic!("illegal state transition"),
+            | PppoeClientState::Active => {} // illegal
             PppoeClientState::RequestSent => {
                 self.output_tx
                     .send(PppoePacket {
@@ -188,8 +186,7 @@ impl PppoeClient {
     fn rpo(&mut self, packet: PppoePacket) {
         match self.state {
             PppoeClientState::Closed | PppoeClientState::RequestSent | PppoeClientState::Active => {
-                panic!("illegal state transition")
-            }
+            } // illegal
             PppoeClientState::InitiationSent => {
                 self.restart_timer.reset();
                 self.restart_counter = self.max_request;
@@ -213,7 +210,7 @@ impl PppoeClient {
         match self.state {
             PppoeClientState::Closed
             | PppoeClientState::InitiationSent
-            | PppoeClientState::Active => panic!("illegal state transition"),
+            | PppoeClientState::Active => {} // illegal
             PppoeClientState::RequestSent => {
                 self.upper_status_tx
                     .send(true)
@@ -228,7 +225,7 @@ impl PppoeClient {
         match self.state {
             PppoeClientState::Closed
             | PppoeClientState::InitiationSent
-            | PppoeClientState::RequestSent => panic!("illegal state transition"),
+            | PppoeClientState::RequestSent => {} // illegal
             PppoeClientState::Active => {
                 self.upper_status_tx
                     .send(false)

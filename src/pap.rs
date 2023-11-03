@@ -208,15 +208,17 @@ impl PapClient {
             PapClientState::Initial | PapClientState::Starting => {
                 panic!("illegal state transition")
             }
-            PapClientState::Closed | PapClientState::Stopped => {}
-            PapClientState::RequestSent | PapClientState::Failed => {
+            PapClientState::Closed
+            | PapClientState::Stopped
+            | PapClientState::Failed
+            | PapClientState::Opened => {}
+            PapClientState::RequestSent => {
                 self.upper_status_tx
                     .send(true)
                     .expect("upper status channel is closed");
 
                 self.state = PapClientState::Opened;
             }
-            PapClientState::Opened => {}
         }
     }
 
@@ -225,15 +227,14 @@ impl PapClient {
             PapClientState::Initial | PapClientState::Starting => {
                 panic!("illegal state transition")
             }
-            PapClientState::Closed | PapClientState::Stopped => {}
-            PapClientState::RequestSent => {
+            PapClientState::Closed | PapClientState::Stopped | PapClientState::Failed => {}
+            PapClientState::RequestSent | PapClientState::Opened => {
                 self.output_tx
                     .send(PapPacket::TerminateLower)
                     .expect("output channel is closed");
 
                 self.state = PapClientState::Failed;
             }
-            PapClientState::Failed | PapClientState::Opened => {}
         }
     }
 }

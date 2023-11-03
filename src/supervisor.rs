@@ -17,8 +17,6 @@ pub struct Client {
     username: String,
     password: String,
 
-    magic: u32,
-
     pppoe: PppoeClient,
     lcp: NegotiationProtocol<LcpOpt>,
     pap: PapClient,
@@ -39,14 +37,12 @@ impl Client {
         let magic = rand::random();
         let peer_magic = rand::random();
 
-        let ifid = rand::random();
+        let ifid = rand::random(); // TODO: persistence
 
         Self {
             link,
             username,
             password,
-
-            magic,
 
             pppoe: PppoeClient::new(None, None),
             lcp: NegotiationProtocol::new(ProtocolConfig {
@@ -59,8 +55,8 @@ impl Client {
                 deny_exact: vec![(LcpOpt::MagicNumber(0), LcpOpt::MagicNumber(peer_magic))],
 
                 request: vec![LcpOpt::Mru(1492), LcpOpt::MagicNumber(magic)],
-                refuse: vec![LcpOpt::Mru(1492), LcpOpt::MagicNumber(magic)],
-                refuse_exact: vec![],
+                refuse: vec![LcpOpt::Mru(1492)],
+                refuse_exact: vec![LcpOpt::MagicNumber(0)],
 
                 need_protocol_reject: true,
 

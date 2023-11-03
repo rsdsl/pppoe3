@@ -84,7 +84,7 @@ impl ChapClient {
     pub async fn to_send(&mut self) -> ChapPacket {
         tokio::select! {
         packet = self.output_rx.recv() => packet.expect("output channel is closed"),
-        _ = self.timeout.tick() => Self::timeout(),
+        _ = self.timeout.tick() => self.fail(),
             }
     }
 
@@ -167,11 +167,13 @@ impl ChapClient {
         self.upper_status_rx.clone()
     }
 
-    const fn timeout() -> ChapPacket {
+    fn fail(&mut self) -> ChapPacket {
+        self.state = ChapClientState::Failed;
+
         ChapPacket {
             ty: ChapType::TerminateLower,
             id: 0,
-            data: Vec::new(),
+            data: Vec::default(),
         }
     }
 
@@ -245,7 +247,10 @@ impl ChapClient {
                     ret
                 });
 
-                self.state = ChapClientState::Failed;
+                let terminate_lower = self.fail();
+                self.output_tx
+                    .send(terminate_lower)
+                    .expect("output channel is closed");
             }
         }
     }

@@ -45,7 +45,7 @@ pub struct PapClient {
 }
 
 impl PapClient {
-    /// Creates a new `PapClient` with the specified username/password pair.
+    /// Creates a new `PapClient`.
     ///
     /// You must start calling the [`PapClient::to_send`] method
     /// before calling the [`PapClient::up`] method

@@ -49,7 +49,8 @@ impl PapClient {
     ///
     /// You must start calling the [`PapClient::to_send`] method
     /// before calling the [`PapClient::up`] method
-    /// and keep calling it until [`PapClient::down`] has been issued.
+    /// and keep calling it until [`PapClient::close`] and [`PapClient::down`]
+    /// have been issued.
     ///
     /// # Arguments
     ///
@@ -164,6 +165,19 @@ impl PapClient {
             }
             PapClientState::Stopped => {}
             PapClientState::RequestSent | PapClientState::Failed | PapClientState::Opened => {}
+        }
+    }
+
+    /// Issues an administrative close, gracefully shutting down the protocol.
+    /// This is equivalent to the Close event.
+    pub fn close(&mut self) {
+        match self.state {
+            PapClientState::Initial | PapClientState::Closed => panic!("illegal state transition"),
+            PapClientState::Starting => self.state = PapClientState::Initial,
+            PapClientState::Stopped
+            | PapClientState::RequestSent
+            | PapClientState::Failed
+            | PapClientState::Opened => self.state = PapClientState::Closed,
         }
     }
 

@@ -1,3 +1,4 @@
+use crate::Result;
 use crate::{
     chap::ChapClient,
     pap::PapClient,
@@ -5,10 +6,18 @@ use crate::{
     proto::{NegotiationProtocol, ProtocolConfig},
 };
 
+use std::ffi::CString;
 use std::net::Ipv4Addr;
+use std::{io, mem};
 
 use ppproperly::{IpCompressionProtocol, IpcpOpt, Ipv6cpOpt, LcpOpt, QualityProtocol};
-// use socket2::Socket;
+use socket2::{SockAddr, Socket};
+
+macro_rules! os_err {
+    () => {
+        return Err(io::Error::last_os_error().into());
+    };
+}
 
 /// A client control instance for full dual stack PPPoE sessions.
 #[derive(Debug)]
@@ -122,6 +131,47 @@ impl Client {
 
     /// Runs the connection. Blocks the caller forever unless a panic occurs.
     pub fn run(&self) {
-        // let sock_disc = self.new_discovery_socket();
+        let sock_disc = self.new_discovery_socket();
+    }
+
+    fn new_discovery_socket(&self) -> Result<Socket> {
+        use libc::{
+            sockaddr_ll, sockaddr_storage, socklen_t, AF_PACKET, ETH_P_PPP_DISC, PF_PACKET,
+            SOCK_RAW,
+        };
+
+        let sock = Socket::new(
+            PF_PACKET.into(),
+            SOCK_RAW.into(),
+            Some(ETH_P_PPP_DISC.into()),
+        )?;
+
+        sock.set_broadcast(true)?;
+
+        let c_link = CString::new(&*self.link)?;
+
+        let ifi = unsafe { libc::if_nametoindex(c_link.as_ptr()) };
+        if ifi == 0 {
+            os_err!();
+        }
+
+        let sa = sockaddr_ll {
+            sll_family: AF_PACKET as u16,
+            sll_protocol: (ETH_P_PPP_DISC as u16).to_be(),
+            sll_ifindex: ifi as i32,
+            sll_hatype: 0,
+            sll_pkttype: 0,
+            sll_halen: 0,
+            sll_addr: [0; 8],
+        };
+
+        sock.bind(&unsafe {
+            SockAddr::new(
+                *mem::transmute::<*const sockaddr_ll, *const sockaddr_storage>(&sa),
+                mem::size_of_val(&sa) as socklen_t,
+            )
+        })?;
+
+        Ok(sock)
     }
 }

@@ -1,3 +1,6 @@
+mod error;
+pub use error::*;
+
 mod proto;
 pub use proto::*;
 

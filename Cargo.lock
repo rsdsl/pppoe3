@@ -262,12 +262,14 @@ dependencies = [
 name = "rsdsl_pppoe3"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "ppproperly",
  "rand",
  "rsdsl_ip_config",
  "serde",
  "serde_json",
  "socket2",
+ "thiserror",
  "tokio",
 ]
 

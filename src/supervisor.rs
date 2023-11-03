@@ -47,7 +47,7 @@ impl Client {
         let magic = rand::random();
         let peer_magic = rand::random();
 
-        let ifid = rand::random(); // TODO: persistence
+        let ifid = rand::random(); // TODO: persistence (accept fn params)
 
         Self {
             link,

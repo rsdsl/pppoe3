@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 ppproperly = { git = "https://github.com/rsdsl/ppproperly.git", version = "0.1.0" }
+rand = "0.8.5"
 rsdsl_ip_config = { git = "https://github.com/rsdsl/ip_config.git", version = "0.2.3" }
 serde = "1.0"
 serde_json = "1.0"
+socket2 = "0.5.5"
 tokio = { version = "1.0", features = ["rt-multi-thread", "macros", "sync", "time"] }

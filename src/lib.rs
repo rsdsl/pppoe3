@@ -5,3 +5,4 @@ pub mod chap;
 pub mod lcp;
 pub mod pap;
 pub mod pppoe;
+pub mod supervisor;

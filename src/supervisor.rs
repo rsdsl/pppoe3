@@ -20,6 +20,47 @@ macro_rules! os_err {
     };
 }
 
+/// A set of file descriptors describing a PPP session
+/// and its virtual network interface.
+#[derive(Debug)]
+struct SessionFds(Socket, File, File);
+
+impl SessionFds {
+    /// Returns an immutable reference to the network interface control socket.
+    pub fn interface(&self) -> &Socket {
+        &self.0
+    }
+
+    /// Returns a mutable reference to the network interface control socket.
+    pub fn interface_mut(&mut self) -> &mut Socket {
+        &mut self.0
+    }
+
+    /// Returns an immutable reference to the file descriptor
+    /// that handles LCP, authentication and other link related traffic.
+    pub fn link(&self) -> &File {
+        &self.1
+    }
+
+    /// Returns a mutable reference to the file descriptor
+    /// that handles LCP, authentication and other link related traffic.
+    pub fn link_mut(&mut self) -> &mut File {
+        &mut self.1
+    }
+
+    /// Returns an immutable reference to the file descriptor
+    /// that handles NCP traffic.
+    pub fn network(&self) -> &File {
+        &self.2
+    }
+
+    /// Returns a mutable reference to the file descriptor
+    /// that handles NCP traffic.
+    pub fn network_mut(&mut self) -> &mut File {
+        &mut self.2
+    }
+}
+
 /// A client control instance for full dual stack PPPoE sessions.
 #[derive(Debug)]
 pub struct Client {
@@ -135,6 +176,8 @@ impl Client {
         let sock_disc = self.new_discovery_socket();
     }
 
+    /// Creates a new socket for PPPoE Discovery traffic.
+    /// Used by the PPPoE implementation.
     fn new_discovery_socket(&self) -> Result<Socket> {
         use libc::{
             sockaddr_ll, sockaddr_storage, socklen_t, AF_PACKET, ETH_P_PPP_DISC, PF_PACKET,
@@ -176,7 +219,12 @@ impl Client {
         Ok(sock)
     }
 
-    fn new_session_fds(&self) -> Result<(Socket, File, File)> {
+    /// Creates a control socket for the `ppp0` virtual network interface
+    /// as well as file descriptors for link/auth and network traffic each.
+    ///
+    /// It is desirable to drop the structure before creating a new one
+    /// to ensure the deletion if the old interface.
+    fn new_session_fds(&self) -> Result<SessionFds> {
         todo!()
     }
 }

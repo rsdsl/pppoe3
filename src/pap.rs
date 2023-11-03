@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 use tokio::time::Interval;
 
-/// The PAP state.
+/// The PAP peer state.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub enum PapClientState {
     #[default]

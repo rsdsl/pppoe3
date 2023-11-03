@@ -226,6 +226,7 @@ impl PapClient {
                 self.output_tx
                     .send(PapPacket::TerminateLower)
                     .expect("output channel is closed");
+
                 self.state = PapClientState::Failed;
             }
             PapClientState::Failed | PapClientState::Opened => {}

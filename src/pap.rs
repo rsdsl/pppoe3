@@ -27,7 +27,7 @@ pub enum PapPacket {
 }
 
 /// The Password Authentication Protocol peer implementation
-/// as per RFC 1994 section 2.
+/// as per RFC 1334 section 2.
 #[derive(Debug)]
 pub struct PapClient {
     state: PapClientState,

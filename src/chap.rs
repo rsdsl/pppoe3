@@ -57,7 +57,8 @@ impl ChapClient {
     ///
     /// You must start calling the [`ChapClient::to_send`] method
     /// before calling the [`ChapClient::up`] method
-    /// and keep calling it until [`ChapClient::down`] has been issued.
+    /// and keep calling it until [`ChapClient::close`] and [`ChapClient::down`]
+    /// have been issued.
     ///
     /// # Arguments
     ///
@@ -158,6 +159,23 @@ impl ChapClient {
                 self.timeout.reset();
                 self.state = ChapClientState::Waiting;
             }
+        }
+    }
+
+    /// Issues an administrative close, gracefully shutting down the protocol.
+    /// This is equivalent to the Close event.
+    pub fn close(&mut self) {
+        match self.state {
+            ChapClientState::Initial | ChapClientState::Closed => {
+                panic!("illegal state transition")
+            }
+            ChapClientState::Starting => self.state = ChapClientState::Initial,
+            ChapClientState::Stopped
+            | ChapClientState::Waiting
+            | ChapClientState::ResponseSent
+            | ChapClientState::ReauthSent
+            | ChapClientState::Failed
+            | ChapClientState::Opened => self.state = ChapClientState::Closed,
         }
     }
 

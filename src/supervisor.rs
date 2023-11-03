@@ -7,6 +7,7 @@ use crate::{
 };
 
 use std::ffi::CString;
+use std::fs::File;
 use std::net::Ipv4Addr;
 use std::{io, mem};
 
@@ -173,5 +174,9 @@ impl Client {
         })?;
 
         Ok(sock)
+    }
+
+    fn new_session_fds(&self) -> Result<(Socket, File, File)> {
+        todo!()
     }
 }

@@ -1,5 +1,7 @@
 use std::{ffi, io};
 
+use tokio::sync::watch;
+
 use thiserror::Error;
 
 /// An external error that prevents a supervisor from functioning.
@@ -9,6 +11,9 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error("interface name contains nul byte: {0}")]
     Nul(#[from] ffi::NulError),
+
+    #[error("error receiving from tokio watch channel: {0}")]
+    WatchRecv(#[from] watch::error::RecvError),
 }
 
 /// An alias for a [`std::result::Result`] with the [`enum@Error`] type of this crate.

@@ -8,10 +8,13 @@ use crate::{
 
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
+use std::io::Read;
 use std::net::Ipv4Addr;
 use std::os::fd::AsRawFd;
+use std::time::Duration;
 use std::{io, mem};
 
+use async_io::Async;
 use ppproperly::{IpCompressionProtocol, IpcpOpt, Ipv6cpOpt, LcpOpt, MacAddr, QualityProtocol};
 use socket2::{SockAddr, Socket, Type};
 
@@ -90,6 +93,8 @@ pub struct Client {
     session_id: u16,
     remote: MacAddr,
 
+    authenticated: bool,
+
     pppoe: PppoeClient,
     lcp: NegotiationProtocol<LcpOpt>,
     pap: PapClient,
@@ -127,6 +132,8 @@ impl Client {
 
             session_id: 0,
             remote: MacAddr::BROADCAST,
+
+            authenticated: false,
 
             pppoe: PppoeClient::new(None, None),
             lcp: NegotiationProtocol::new(ProtocolConfig {
@@ -206,13 +213,150 @@ impl Client {
 
     /// Tries to keep a session open at all costs.
     /// Blocks the caller forever unless a panic occurs.
-    pub fn run(&self) {
-        let sock_disc = self.new_discovery_socket();
+    pub async fn run(&mut self) -> Result<()> {
+        let sock_disc = self.new_discovery_socket()?;
+
+        let mut pppoe_buf = [0; 1522];
+
+        let mut ncp_check = tokio::time::interval(Duration::from_secs(20));
+
+        let mut pppoe_rx = self.pppoe.active();
+        let mut lcp_rx = self.lcp.opened();
+        let mut pap_rx = self.pap.opened();
+        let mut chap_rx = self.chap.opened();
+        let mut ipcp_rx = self.ipcp.opened();
+        let mut ipv6cp_rx = self.ipv6cp.opened();
+
+        let mut lcp_lower_rx = self.lcp.active();
+        let mut ipcp_lower_rx = self.ipcp.active();
+        let mut ipv6cp_lower_rx = self.ipv6cp.active();
+
+        self.pppoe.open();
+        self.lcp.open();
+        // Authentication protocols are opened as needed, see select! below.
+        self.ipcp.open();
+        self.ipv6cp.open();
+
+        loop {
+            tokio::select! {
+                result = pppoe_rx.changed() => {
+                    result?;
+
+                    let is_active = *pppoe_rx.borrow_and_update();
+                    if is_active {
+                        todo!("setup session (fds)");
+                        self.lcp.up();
+                    } else {
+                        todo!("erase session (fds)");
+                        self.lcp.down();
+                    }
+                }
+                result = lcp_rx.changed() => {
+                    result?;
+
+                    let is_opened = *lcp_rx.borrow_and_update();
+                    if is_opened {
+                        todo!("open auth as needed or skip straight to NCPs and set authenticated = true and reset ncp check timer")
+                    } else {
+                        self.authenticated = false;
+
+                        self.pap.down();
+                        self.chap.down();
+                        self.ipcp.down();
+                        self.ipv6cp.down();
+
+                        self.pap.close();
+                        self.chap.close();
+                    }
+                }
+                result = pap_rx.changed() => {
+                    result?;
+
+                    let is_opened = *pap_rx.borrow_and_update();
+                    if is_opened {
+                        self.authenticated = true;
+                        ncp_check.reset();
+
+                        self.ipcp.up();
+                        self.ipv6cp.up();
+                    } // PAP cannot go down once it has opened successfully.
+                }
+                result = chap_rx.changed() => {
+                    result?;
+
+                    let is_opened = *chap_rx.borrow_and_update();
+                    if is_opened {
+                        self.authenticated = true;
+                        ncp_check.reset();
+
+                        self.ipcp.up();
+                        self.ipv6cp.up();
+                    } else {
+                        self.authenticated = false;
+                        self.lcp.close();
+                    }
+                }
+                result = ipcp_rx.changed() => {
+                    result?;
+
+                    let is_opened = *ipcp_rx.borrow_and_update();
+                    if is_opened {
+                        todo!("write v4 success to ds config and inform netlinkd")
+                    } else {
+                        todo!("write v4 invalidation to ds config and inform netlinkd")
+                    }
+                }
+                result = ipv6cp_rx.changed() => {
+                    result?;
+
+                    let is_opened = *ipv6cp_rx.borrow_and_update();
+                    if is_opened {
+                        todo!("write v6 success to ds config and inform netlinkd and dhcp6")
+                    } else {
+                        todo!("write v6 invalidation to ds config and inform netlinkd and dhcp6")
+                    }
+                }
+
+                result = lcp_lower_rx.changed() => {
+                    result?;
+
+                    let is_active = *lcp_lower_rx.borrow_and_update();
+                    if !is_active { // LCP has gone down, a new PPPoE session is needed.
+                        self.lcp.down();
+
+                        self.pppoe.close();
+                        self.pppoe.open();
+
+                        self.lcp.open();
+                    }
+                }
+                result = ipcp_lower_rx.changed() => {
+                    result?;
+                    ncp_check.reset();
+                }
+                result = ipv6cp_lower_rx.changed() => {
+                    result?;
+                    ncp_check.reset();
+                }
+
+                _ = ncp_check.tick() => {
+                    if *lcp_rx.borrow() && self.authenticated && !*ipcp_rx.borrow() && !*ipv6cp_rx.borrow() {
+                        // No NCPs are up after 20 seconds, terminate the link.
+                        self.lcp.close();
+                    }
+                }
+
+                result = sock_disc.read_with(|mut io| io.read(&mut pppoe_buf)) => {
+                    let n = result?;
+                    let pppoe_buf = &pppoe_buf[..n];
+                }
+            }
+        }
     }
 
     /// Creates a new socket for PPPoE Discovery traffic.
     /// Used by the PPPoE implementation.
-    fn new_discovery_socket(&self) -> Result<Socket> {
+    fn new_discovery_socket(&self) -> Result<Async<Socket>> {
         use libc::{
             sockaddr_ll, sockaddr_storage, socklen_t, AF_PACKET, ETH_P_PPP_DISC, PF_PACKET,
             SOCK_RAW,
@@ -250,7 +394,7 @@ impl Client {
             )
         })?;
 
-        Ok(sock)
+        Ok(Async::new(sock)?)
     }
 
     /// Creates a control socket for the `ppp0` virtual network interface

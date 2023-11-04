@@ -381,6 +381,14 @@ impl Client {
     /// Transforms a [`PppoePkt`] into a [`PppoePacket`] and feeds it
     /// into the PPPoE state machine.
     fn handle_pppoe(&mut self, pkt: PppoePkt) {
+        if pkt.session_id != self.session_id {
+            return;
+        }
+
+        if pkt.src_mac != self.remote && self.remote != MacAddr::BROADCAST {
+            return;
+        }
+
         let packet = match pkt.data {
             PppoeData::Ignore => None,
             PppoeData::Ppp(_) => None, // illegal

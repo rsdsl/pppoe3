@@ -124,6 +124,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
+name = "ioctl-sys"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f9d0b6b23885487578d10590edc36fd95426257c7017973b20633e34df23b08"
+
+[[package]]
+name = "ioctls"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5780ca662f733ea1b940647b657d5324abc55a7d8d9b0628e8af8fe96ab3ed2"
+dependencies = [
+ "ioctl-sys",
+ "libc",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -262,6 +278,7 @@ dependencies = [
 name = "rsdsl_pppoe3"
 version = "0.1.0"
 dependencies = [
+ "ioctls",
  "libc",
  "ppproperly",
  "rand",

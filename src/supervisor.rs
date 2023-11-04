@@ -7,17 +7,36 @@ use crate::{
 };
 
 use std::ffi::CString;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::net::Ipv4Addr;
+use std::os::fd::AsRawFd;
 use std::{io, mem};
 
-use ppproperly::{IpCompressionProtocol, IpcpOpt, Ipv6cpOpt, LcpOpt, QualityProtocol};
-use socket2::{SockAddr, Socket};
+use ppproperly::{IpCompressionProtocol, IpcpOpt, Ipv6cpOpt, LcpOpt, MacAddr, QualityProtocol};
+use socket2::{SockAddr, Socket, Type};
 
 macro_rules! os_err {
     () => {
         return Err(io::Error::last_os_error().into());
     };
+}
+
+/// A port of the `pppoe_addr` C data structure.
+#[repr(C)]
+#[derive(Debug)]
+struct pppoe_addr {
+    pub sid: u16,
+    pub remote: MacAddr,
+    pub dev: String,
+}
+
+/// A port of the `sockaddr_pppox` C data structure.
+#[repr(C)]
+#[derive(Debug)]
+struct sockaddr_pppox {
+    pub sa_family: libc::sa_family_t,
+    pub sa_protocol: u32,
+    pub pppoe: pppoe_addr,
 }
 
 /// A set of file descriptors describing a PPP session
@@ -68,6 +87,9 @@ pub struct Client {
     username: String,
     password: String,
 
+    session_id: u16,
+    remote: MacAddr,
+
     pppoe: PppoeClient,
     lcp: NegotiationProtocol<LcpOpt>,
     pap: PapClient,
@@ -102,6 +124,9 @@ impl Client {
             link,
             username,
             password,
+
+            session_id: 0,
+            remote: MacAddr::BROADCAST,
 
             pppoe: PppoeClient::new(None, None),
             lcp: NegotiationProtocol::new(ProtocolConfig {
@@ -234,6 +259,57 @@ impl Client {
     /// It is desirable to drop the structure before creating a new one
     /// to ensure the deletion if the old interface.
     fn new_session_fds(&self) -> Result<SessionFds> {
-        todo!()
+        use libc::{sockaddr_storage, socklen_t, AF_PPPOX};
+
+        const PX_PROTO_OE: i32 = 0;
+
+        let sp = sockaddr_pppox {
+            sa_family: AF_PPPOX as u16,
+            sa_protocol: PX_PROTO_OE as u32,
+            pppoe: pppoe_addr {
+                sid: self.session_id,
+                remote: self.remote,
+                dev: self.link.clone(),
+            },
+        };
+
+        let sock = Socket::new(AF_PPPOX.into(), Type::STREAM, Some(PX_PROTO_OE.into()))?;
+
+        sock.connect(&unsafe {
+            SockAddr::new(
+                *mem::transmute::<*const sockaddr_pppox, *const sockaddr_storage>(&sp),
+                mem::size_of_val(&sp) as socklen_t,
+            )
+        })?;
+
+        let mut chindex = 0;
+        if unsafe { ioctls::pppiocgchan(sock.as_raw_fd(), &mut chindex) } < 0 {
+            os_err!();
+        }
+
+        let ctl = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(false)
+            .truncate(false)
+            .open("/dev/ppp")?;
+
+        let ppp_dev = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(false)
+            .truncate(false)
+            .open("/dev/ppp")?;
+
+        let mut ifunit = -1;
+        if unsafe { ioctls::pppiocnewunit(ppp_dev.as_raw_fd(), &mut ifunit) } < 0 {
+            os_err!();
+        }
+
+        if unsafe { ioctls::pppiocconnect(ctl.as_raw_fd(), &ifunit) } < 0 {
+            os_err!();
+        }
+
+        Ok(SessionFds(sock, ctl, ppp_dev))
     }
 }

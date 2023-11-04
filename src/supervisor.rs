@@ -84,11 +84,19 @@ impl Client {
     /// * `link` - The Ethernet interface to open the session on.
     /// * `username` - The PAP/CHAP username to use for authentication.
     /// * `password` - The PAP/CHAP password to use for authentication.
-    pub fn new(link: String, username: String, password: String) -> Self {
+    /// * `ipv4_addr` - The IPv4 address to request initially.
+    /// * `ipv6_ifid` - The IPv6 interface identifier to request.
+    pub fn new(
+        link: String,
+        username: String,
+        password: String,
+        ipv4_addr: Option<Ipv4Addr>,
+        ipv6_ifid: Option<u64>,
+    ) -> Self {
         let magic = rand::random();
         let peer_magic = rand::random();
 
-        let ifid = rand::random(); // TODO: persistence (accept fn params)
+        let ifid = ipv6_ifid.unwrap_or(rand::random());
 
         Self {
             link,
@@ -129,7 +137,7 @@ impl Client {
                 )],
 
                 request: vec![
-                    IpcpOpt::IpAddr(Ipv4Addr::UNSPECIFIED.into()),
+                    IpcpOpt::IpAddr(ipv4_addr.unwrap_or(Ipv4Addr::UNSPECIFIED).into()),
                     IpcpOpt::PrimaryDns(Ipv4Addr::UNSPECIFIED.into()),
                     IpcpOpt::SecondaryDns(Ipv4Addr::UNSPECIFIED.into()),
                 ],

@@ -1,10 +1,4 @@
-use crate::Result;
-use crate::{
-    chap::ChapClient,
-    pap::PapClient,
-    pppoe::PppoeClient,
-    proto::{NegotiationProtocol, ProtocolConfig},
-};
+use crate::{Result, *};
 
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
@@ -15,7 +9,7 @@ use std::time::Duration;
 use std::{io, mem};
 
 use async_io::Async;
-use ppproperly::{IpCompressionProtocol, IpcpOpt, Ipv6cpOpt, LcpOpt, MacAddr, QualityProtocol};
+use ppproperly::*;
 use socket2::{SockAddr, Socket, Type};
 
 macro_rules! os_err {
@@ -215,8 +209,12 @@ impl Client {
     /// Blocks the caller forever unless a panic occurs.
     pub async fn run(&mut self) -> Result<()> {
         let sock_disc = self.new_discovery_socket()?;
+        let mut ctl = None;
+        let mut ppp_dev = None;
 
         let mut pppoe_buf = [0; 1522];
+        let mut link_buf = [0; 1494];
+        let mut net_buf = [0; 1494];
 
         let mut ncp_check = tokio::time::interval(Duration::from_secs(20));
 
@@ -348,11 +346,83 @@ impl Client {
 
                 result = sock_disc.read_with(|mut io| io.read(&mut pppoe_buf)) => {
                     let n = result?;
-                    let pppoe_buf = &pppoe_buf[..n];
+                    let mut pppoe_buf = &pppoe_buf[..n];
+
+                    let mut pkt = PppoePkt::default();
+                    pkt.deserialize(&mut pppoe_buf)?;
+
+                    self.handle_pppoe(pkt);
+                }
+                Some(result) = option_read_with(ctl.as_ref(), &mut link_buf) => {
+                    let n = result?;
+                    let mut link_buf = &link_buf[..n];
+
+                    let mut pkt = PppPkt::default();
+                    pkt.deserialize(&mut link_buf)?;
+
+                    self.handle_ppp(pkt);
+                }
+                Some(result) = option_read_with(ppp_dev.as_ref(), &mut net_buf) => {
+                    let n = result?;
+                    let mut net_buf = &net_buf[..n];
+
+                    let mut pkt = PppPkt::default();
+                    pkt.deserialize(&mut net_buf)?;
+
+                    self.handle_ppp(pkt);
                 }
             }
         }
     }
+
+    /// Transforms a [`PppoePkt`] into a [`PppoePacket`] and feeds it
+    /// into the PPPoE state machine.
+    fn handle_pppoe(&mut self, pkt: PppoePkt) {
+        let packet = match pkt.data {
+            PppoeData::Ignore => None,
+            PppoeData::Ppp(_) => None, // illegal
+            PppoeData::Padi(_) => Some(PppoePacket {
+                ty: PppoeType::Padi,
+                ac_cookie: None,
+            }),
+            PppoeData::Pado(pado) => Some(PppoePacket {
+                ty: PppoeType::Pado,
+                ac_cookie: pado.tags.into_iter().find_map(|tag| {
+                    if let PppoeVal::AcCookie(ac_cookie) = tag.data {
+                        Some(ac_cookie)
+                    } else {
+                        None
+                    }
+                }),
+            }),
+            PppoeData::Padr(padr) => Some(PppoePacket {
+                ty: PppoeType::Padr,
+                ac_cookie: padr.tags.into_iter().find_map(|tag| {
+                    if let PppoeVal::AcCookie(ac_cookie) = tag.data {
+                        Some(ac_cookie)
+                    } else {
+                        None
+                    }
+                }),
+            }),
+            PppoeData::Pads(_) => Some(PppoePacket {
+                ty: PppoeType::Pads,
+                ac_cookie: None,
+            }),
+            PppoeData::Padt(_) => Some(PppoePacket {
+                ty: PppoeType::Padt,
+                ac_cookie: None,
+            }),
+        };
+
+        if let Some(packet) = packet {
+            self.pppoe.from_recv(packet);
+        }
+    }
+
+    /// Transforms a [`PppPkt`] into the correct sub-protocol packet type
+    /// and feeds it into the right sub-PPP state machine.
+    fn handle_ppp(&mut self, pkt: PppPkt) {}
 
     /// Creates a new socket for PPPoE Discovery traffic.
     /// Used by the PPPoE implementation.
@@ -456,4 +526,8 @@ impl Client {
 
         Ok(SessionFds(sock, ctl, ppp_dev))
     }
+}
+
+async fn option_read_with(file: Option<&File>, buf: &mut [u8]) -> Option<io::Result<usize>> {
+    file.map(|mut file| file.read(buf))
 }

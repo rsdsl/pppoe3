@@ -14,6 +14,9 @@ pub enum Error {
 
     #[error("error receiving from tokio watch channel: {0}")]
     WatchRecv(#[from] watch::error::RecvError),
+
+    #[error("ppproperly packet (de)serialization failed: {0}")]
+    Ppproperly(#[from] ppproperly::Error),
 }
 
 /// An alias for a [`std::result::Result`] with the [`enum@Error`] type of this crate.

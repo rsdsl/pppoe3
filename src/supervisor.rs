@@ -209,8 +209,7 @@ impl Client {
     /// Blocks the caller forever unless a panic occurs.
     pub async fn run(&mut self) -> Result<()> {
         let sock_disc = self.new_discovery_socket()?;
-        let mut ctl = None;
-        let mut ppp_dev = None;
+        let mut session_fds: Option<SessionFds> = None;
 
         let mut pppoe_buf = [0; 1522];
         let mut link_buf = [0; 1494];
@@ -242,10 +241,14 @@ impl Client {
 
                     let is_active = *pppoe_rx.borrow_and_update();
                     if is_active {
-                        todo!("setup session (fds)");
+                        session_fds = Some(self.new_session_fds()?);
                         self.lcp.up();
                     } else {
-                        todo!("erase session (fds)");
+                        session_fds = None;
+
+                        self.session_id = 0;
+                        self.remote = MacAddr::BROADCAST;
+
                         self.lcp.down();
                     }
                 }
@@ -353,7 +356,7 @@ impl Client {
 
                     self.handle_pppoe(pkt);
                 }
-                Some(result) = option_read_with(ctl.as_ref(), &mut link_buf) => {
+                Some(result) = option_read_with(session_fds.as_ref().map(|fds| fds.link()), &mut link_buf) => {
                     let n = result?;
                     let mut link_buf = &link_buf[..n];
 
@@ -362,7 +365,7 @@ impl Client {
 
                     self.handle_ppp(pkt);
                 }
-                Some(result) = option_read_with(ppp_dev.as_ref(), &mut net_buf) => {
+                Some(result) = option_read_with(session_fds.as_ref().map(|fds| fds.network()), &mut net_buf) => {
                     let n = result?;
                     let mut net_buf = &net_buf[..n];
 
@@ -385,16 +388,20 @@ impl Client {
                 ty: PppoeType::Padi,
                 ac_cookie: None,
             }),
-            PppoeData::Pado(pado) => Some(PppoePacket {
-                ty: PppoeType::Pado,
-                ac_cookie: pado.tags.into_iter().find_map(|tag| {
-                    if let PppoeVal::AcCookie(ac_cookie) = tag.data {
-                        Some(ac_cookie)
-                    } else {
-                        None
-                    }
-                }),
-            }),
+            PppoeData::Pado(pado) => {
+                self.remote = pkt.src_mac;
+
+                Some(PppoePacket {
+                    ty: PppoeType::Pado,
+                    ac_cookie: pado.tags.into_iter().find_map(|tag| {
+                        if let PppoeVal::AcCookie(ac_cookie) = tag.data {
+                            Some(ac_cookie)
+                        } else {
+                            None
+                        }
+                    }),
+                })
+            }
             PppoeData::Padr(padr) => Some(PppoePacket {
                 ty: PppoeType::Padr,
                 ac_cookie: padr.tags.into_iter().find_map(|tag| {
@@ -405,10 +412,14 @@ impl Client {
                     }
                 }),
             }),
-            PppoeData::Pads(_) => Some(PppoePacket {
-                ty: PppoeType::Pads,
-                ac_cookie: None,
-            }),
+            PppoeData::Pads(_) => {
+                self.session_id = pkt.session_id;
+
+                Some(PppoePacket {
+                    ty: PppoeType::Pads,
+                    ac_cookie: None,
+                })
+            }
             PppoeData::Padt(_) => Some(PppoePacket {
                 ty: PppoeType::Padt,
                 ac_cookie: None,

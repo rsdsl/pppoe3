@@ -826,7 +826,7 @@ impl Client {
     /// Transforms a [`PppoePkt`] into a [`PppoePacket`] and feeds it
     /// into the PPPoE state machine.
     fn handle_pppoe(&mut self, pkt: PppoePkt) {
-        if pkt.session_id != self.session_id {
+        if pkt.session_id != self.session_id && self.session_id != 0 {
             return;
         }
 

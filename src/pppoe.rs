@@ -40,9 +40,9 @@ pub struct PppoeClient {
     state: PppoeClientState,
 
     restart_timer: Interval,
-    restart_counter: u32,
+    restart_counter: i32,
 
-    max_request: u32,
+    max_request: i32,
 
     output_tx: mpsc::UnboundedSender<PppoePacket>,
     output_rx: mpsc::UnboundedReceiver<PppoePacket>,
@@ -62,7 +62,7 @@ impl PppoeClient {
     ///
     /// * `restart_interval` - The retransmission interval, default is 3 seconds.
     /// * `max_request` - The maximum number of PADRs to retransmit, default is 10.
-    pub fn new(restart_interval: Option<Duration>, max_request: Option<u32>) -> Self {
+    pub fn new(restart_interval: Option<Duration>, max_request: Option<i32>) -> Self {
         let restart_timer =
             tokio::time::interval(restart_interval.unwrap_or(Duration::from_secs(3)));
         let (output_tx, output_rx) = mpsc::unbounded_channel();
@@ -91,7 +91,7 @@ impl PppoeClient {
         loop {
             tokio::select! {
                 packet = self.output_rx.recv() => return packet.expect("output channel is closed"),
-                _ = self.restart_timer.tick() => if self.restart_counter > 0 {
+                _ = self.restart_timer.tick() => if self.restart_counter != 0 {
                     if let Some(packet) = self.timeout_positive() { return packet; }
                 } else {
                     self.timeout_negative();
@@ -115,7 +115,19 @@ impl PppoeClient {
     /// This is equivalent to the Open event.
     pub fn open(&mut self) {
         match self.state {
-            PppoeClientState::Closed => {}
+            PppoeClientState::Closed => {
+                self.restart_timer.reset();
+                self.restart_counter = -1;
+
+                self.output_tx
+                    .send(PppoePacket {
+                        ty: PppoeType::Padi,
+                        ac_cookie: None,
+                    })
+                    .expect("output channel is closed");
+
+                self.state = PppoeClientState::InitiationSent;
+            }
             PppoeClientState::InitiationSent
             | PppoeClientState::RequestSent
             | PppoeClientState::Active => {} // illegal

@@ -226,6 +226,22 @@ impl Client {
         })
     }
 
+    /// Returns the currently negotiated local magic number.
+    pub fn magic(&self) -> Result<u32> {
+        Ok(*self
+            .lcp
+            .our_options()
+            .iter()
+            .find_map(|option| {
+                if let LcpOpt::MagicNumber(magic) = option {
+                    Some(magic)
+                } else {
+                    None
+                }
+            })
+            .ok_or(Error::NoMagicNumber)?)
+    }
+
     /// Tries to keep a session open at all costs.
     /// Blocks the caller forever unless a panic occurs.
     pub async fn run(&mut self) -> Result<()> {
@@ -385,13 +401,7 @@ impl Client {
                 packet = self.pppoe.to_send() => self.send_pppoe(&sock_disc, packet).await?,
                 packet = self.lcp.to_send() => self.send_lcp(
                     session_fds.as_ref().map(|fds| fds.link()),
-                    *self.lcp.our_options().iter().find_map(|option| {
-                        if let LcpOpt::MagicNumber(magic) = option {
-                            Some(magic)
-                        } else {
-                            None
-                        }
-                    }).ok_or(Error::NoMagicNumber)?,
+                    self.magic()?,
                     packet
                 ).await?,
                 packet = self.pap.to_send() => self.send_pap(
@@ -434,7 +444,7 @@ impl Client {
                     let mut pkt = PppPkt::default();
                     pkt.deserialize(&mut link_buf)?;
 
-                    self.handle_ppp(pkt);
+                    self.handle_ppp(pkt)?;
                 }
                 Some(result) = option_read_with(session_fds.as_ref().map(|fds| fds.network()), &mut net_buf) => {
                     let n = result?;
@@ -443,7 +453,7 @@ impl Client {
                     let mut pkt = PppPkt::default();
                     pkt.deserialize(&mut net_buf)?;
 
-                    self.handle_ppp(pkt);
+                    self.handle_ppp(pkt)?;
                 }
             }
         }
@@ -773,19 +783,21 @@ impl Client {
 
     /// Transforms a [`PppPkt`] into the correct sub-protocol packet type
     /// and feeds it into the right sub-PPP state machine.
-    fn handle_ppp(&mut self, pkt: PppPkt) {
+    fn handle_ppp(&mut self, pkt: PppPkt) -> Result<()> {
         match pkt.data {
-            PppData::Lcp(lcp) => self.handle_lcp(lcp),
+            PppData::Lcp(lcp) => self.handle_lcp(lcp)?,
             PppData::Pap(pap) => self.handle_pap(pap),
             PppData::Chap(chap) => self.handle_chap(chap),
             PppData::Ipcp(ipcp) => self.handle_ipcp(ipcp),
             PppData::Ipv6cp(ipv6cp) => self.handle_ipv6cp(ipv6cp),
         }
+
+        Ok(())
     }
 
     /// Transforms an [`LcpPkt`] into an [`LcpPacket`] and feeds it
     /// into the LCP state machine.
-    fn handle_lcp(&mut self, pkt: LcpPkt) {
+    fn handle_lcp(&mut self, pkt: LcpPkt) -> Result<()> {
         self.last_id_remote = pkt.identifier;
         self.lcp_id_remote = pkt.identifier;
 
@@ -889,35 +901,56 @@ impl Client {
                     rejected_protocol: protocol_reject.protocol,
                 }),
             },
-            LcpData::EchoRequest(_) => Some(Packet {
-                ty: PacketType::EchoRequest,
-                options: Vec::default(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            }),
-            LcpData::EchoReply(_) => {
-                if pkt.identifier == self.lcp_id_echo {
+            LcpData::EchoRequest(echo_request) => {
+                if echo_request.magic != self.magic()? {
                     Some(Packet {
-                        ty: PacketType::EchoReply,
+                        ty: PacketType::EchoRequest,
                         options: Vec::default(),
                         rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                 } else {
+                    println!("[warn] <- own echo-req");
                     None
                 }
             }
-            LcpData::DiscardRequest(_) => Some(Packet {
-                ty: PacketType::DiscardRequest,
-                options: Vec::default(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            }),
+            LcpData::EchoReply(echo_reply) => {
+                if pkt.identifier == self.lcp_id_echo {
+                    if echo_reply.magic != self.magic()? {
+                        Some(Packet {
+                            ty: PacketType::EchoReply,
+                            options: Vec::default(),
+                            rejected_code: PacketType::Unknown(0),
+                            rejected_protocol: 0,
+                        })
+                    } else {
+                        println!("[warn] <- own echo-reply");
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            LcpData::DiscardRequest(discard_request) => {
+                if discard_request.magic != self.magic()? {
+                    Some(Packet {
+                        ty: PacketType::DiscardRequest,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    })
+                } else {
+                    println!("[warn] <- own discard-req");
+                    None
+                }
+            }
         };
 
         if let Some(packet) = packet {
             self.lcp.from_recv(packet);
         }
+
+        Ok(())
     }
 
     /// Transforms a [`PapPkt`] into a [`PapPacket`] and feeds it

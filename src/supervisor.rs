@@ -462,7 +462,164 @@ impl Client {
 
     /// Transforms a [`PppPkt`] into the correct sub-protocol packet type
     /// and feeds it into the right sub-PPP state machine.
-    fn handle_ppp(&mut self, pkt: PppPkt) {}
+    fn handle_ppp(&mut self, pkt: PppPkt) {
+        match pkt.data {
+            PppData::Lcp(lcp) => self.handle_lcp(lcp),
+            PppData::Pap(pap) => self.handle_pap(pap),
+            PppData::Chap(chap) => self.handle_chap(chap),
+            PppData::Ipcp(ipcp) => self.handle_ipcp(ipcp),
+            PppData::Ipv6cp(ipv6cp) => self.handle_ipv6cp(ipv6cp),
+        }
+    }
+
+    /// Transforms an [`LcpPkt`] into an [`LcpPacket`] and feeds it
+    /// into the LCP state machine.
+    fn handle_lcp(&mut self, pkt: LcpPkt) {
+        let packet = match pkt.data {
+            LcpData::ConfigureRequest(cfg_req) => Some(Packet {
+                ty: PacketType::ConfigureRequest,
+                options: cfg_req.options.into_iter().map(|opt| opt.value).collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            }),
+            LcpData::ConfigureAck(cfg_ack) => Some(Packet {
+                ty: PacketType::ConfigureAck,
+                options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            }),
+            LcpData::ConfigureNak(cfg_nak) => Some(Packet {
+                ty: PacketType::ConfigureNak,
+                options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            }),
+            LcpData::ConfigureReject(cfg_reject) => Some(Packet {
+                ty: PacketType::ConfigureReject,
+                options: cfg_reject
+                    .options
+                    .into_iter()
+                    .map(|opt| opt.value)
+                    .collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            }),
+            LcpData::TerminateRequest(_) => Some(Packet {
+                ty: PacketType::TerminateRequest,
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            }),
+            LcpData::TerminateAck(_) => Some(Packet {
+                ty: PacketType::TerminateAck,
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            }),
+            LcpData::CodeReject(code_reject) => Some(Packet {
+                ty: PacketType::CodeReject,
+                options: Vec::default(),
+                rejected_code: code_reject.pkt[1].into(),
+                rejected_protocol: 0,
+            }),
+            LcpData::ProtocolReject(protocol_reject) => match protocol_reject.protocol {
+                // LCP, PAP, CHAP or anything else.
+                _ => Some(Packet {
+                    ty: PacketType::ProtocolReject,
+                    options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: protocol_reject.protocol,
+                }),
+                IPCP => {
+                    self.ipcp.from_recv(Packet {
+                        ty: PacketType::ProtocolReject,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: protocol_reject.protocol,
+                    });
+
+                    None
+                }
+                IPV6CP => {
+                    self.ipv6cp.from_recv(Packet {
+                        ty: PacketType::ProtocolReject,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown,
+                        rejected_protocol: protocol_reject.protocol,
+                    });
+
+                    None
+                }
+            },
+            LcpData::EchoRequest(_) => Some(Packet {
+                ty: PacketType::EchoRequest,
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            }),
+            LcpData::EchoReply(_) => Some(Packet {
+                ty: PacketType::EchoReply,
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            }),
+            LcpData::DiscardRequest(_) => Some(Packet {
+                ty: PacketType::DiscardRequest,
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            }),
+        };
+
+        if let Some(packet) = packet {
+            self.lcp.from_recv(packet);
+        }
+    }
+
+    /// Transforms a [`PapPkt`] into a [`PapPacket`] and feeds it
+    /// into the PAP state machine.
+    fn handle_pap(&mut self, pkt: PapPkt) {
+        self.pap.from_recv(match pkt.data {
+            PapData::AuthenticateRequest(_) => PapPacket::AuthenticateRequest,
+            PapData::AuthenticateAck(_) => PapPacket::AuthenticateAck,
+            PapData::AuthenticateNak(_) => PapPacket::AuthenticateNak,
+        });
+    }
+
+    /// Transforms a [`ChapPkt`] into a [`ChapPacket`] and feeds it
+    /// into the CHAP state machine.
+    fn handle_chap(&mut self, pkt: ChapPkt) {
+        self.chap.from_recv(match pkt.data {
+            ChapData::Challenge(challenge) => ChapPacket {
+                ty: ChapType::Challenge,
+                id: pkt.identifier,
+                data: challenge.value,
+            },
+            ChapData::Response(response) => ChapPacket {
+                ty: ChapType::Response,
+                id: pkt.identifier,
+                data: response.value,
+            },
+            ChapData::Success(_) => ChapPacket {
+                ty: ChapType::Success,
+                id: pkt.identifier,
+                data: Vec::default(),
+            },
+            ChapData::Failure(_) => ChapPacket {
+                ty: ChapType::Failure,
+                id: pkt.identifier,
+                data: Vec::default(),
+            },
+        });
+    }
+
+    /// Transforms an [`IpcpPkt`] into an [`IpcpPacket`] and feeds it
+    /// into the IPCP state machine.
+    fn handle_ipcp(&mut self, pkt: IpcpPkt) {}
+
+    /// Transforms an [`Ipv6cpPkt`] into an [`Ipv6cpPacket`] and feeds it
+    /// into the IPv6CP state machine.
+    fn handle_ipv6cp(&mut self, pkt: Ipv6cpPkt) {}
 
     /// Creates a new socket for PPPoE Discovery traffic.
     /// Used by the PPPoE implementation.

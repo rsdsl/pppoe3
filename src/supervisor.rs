@@ -8,6 +8,8 @@ use std::os::fd::AsRawFd;
 use std::time::Duration;
 use std::{io, mem};
 
+use tokio::time::Interval;
+
 use async_io::Async;
 use ppproperly::*;
 use socket2::{SockAddr, Socket, Type};
@@ -87,6 +89,8 @@ pub struct Client {
     ipv6cp_id_term: u8,
     ipv6cp_id_remote: u8,
 
+    timeout: Interval,
+
     pppoe: PppoeClient,
     lcp: NegotiationProtocol<LcpOpt>,
     pap: PapClient,
@@ -149,6 +153,8 @@ impl Client {
             ipv6cp_id_cfg: 0,
             ipv6cp_id_term: 0,
             ipv6cp_id_remote: 0,
+
+            timeout: tokio::time::interval(Duration::from_secs(30)),
 
             pppoe: PppoeClient::new(None, None),
             lcp: NegotiationProtocol::new(ProtocolConfig {
@@ -252,6 +258,7 @@ impl Client {
         let mut link_buf = [0; 1494];
         let mut net_buf = [0; 1494];
 
+        let mut echo_timeout = tokio::time::interval(Duration::from_secs(12));
         let mut ncp_check = tokio::time::interval(Duration::from_secs(20));
 
         let mut pppoe_rx = self.pppoe.active();
@@ -401,7 +408,6 @@ impl Client {
                 packet = self.pppoe.to_send() => self.send_pppoe(&sock_disc, packet).await?,
                 packet = self.lcp.to_send() => self.send_lcp(
                     session_fds.as_ref().map(|fds| fds.link()),
-                    self.magic()?,
                     packet
                 ).await?,
                 packet = self.pap.to_send() => self.send_pap(
@@ -421,6 +427,26 @@ impl Client {
                     packet
                 ).await?,
 
+                _ = echo_timeout.tick() => {
+                    if *lcp_rx.borrow() {
+                        // Send an LCP Echo-Request every 12 seconds.
+                        self.send_lcp(
+                            session_fds.as_ref().map(|fds| fds.link()),
+                            Packet {
+                                ty: PacketType::EchoRequest,
+                                options: Vec::default(),
+                                rejected_code: PacketType::Unknown(0),
+                                rejected_protocol: 0,
+                            }
+                        ).await?;
+                    }
+                }
+                _ = self.timeout.tick() => {
+                    if *lcp_rx.borrow() {
+                        // No LCP traffic has been received for 30 seconds, terminate the link.
+                        self.lcp.close();
+                    }
+                }
                 _ = ncp_check.tick() => {
                     if *lcp_rx.borrow() && self.authenticated && !*ipcp_rx.borrow() && !*ipv6cp_rx.borrow() {
                         // No NCPs are up after 20 seconds, terminate the link.
@@ -500,12 +526,7 @@ impl Client {
 
     /// Transforms a [`Packet`] into an [`LcpPkt`] and sends it
     /// over the PPP session if available.
-    async fn send_lcp(
-        &mut self,
-        file: Option<&File>,
-        magic: u32,
-        packet: Packet<LcpOpt>,
-    ) -> Result<()> {
+    async fn send_lcp(&mut self, file: Option<&File>, packet: Packet<LcpOpt>) -> Result<()> {
         let pkt = PppPkt::new_lcp(match packet.ty {
             PacketType::ConfigureRequest => {
                 self.lcp_id_cfg = rand::random();
@@ -544,13 +565,13 @@ impl Client {
             ),
             PacketType::EchoRequest => {
                 self.lcp_id_echo = rand::random();
-                LcpPkt::new_echo_request(self.lcp_id_echo, magic, Vec::default())
+                LcpPkt::new_echo_request(self.lcp_id_echo, self.magic()?, Vec::default())
             }
             PacketType::EchoReply => {
-                LcpPkt::new_echo_reply(self.lcp_id_remote, magic, Vec::default())
+                LcpPkt::new_echo_reply(self.lcp_id_remote, self.magic()?, Vec::default())
             }
             PacketType::DiscardRequest => {
-                LcpPkt::new_discard_request(rand::random(), magic, Vec::default())
+                LcpPkt::new_discard_request(rand::random(), self.magic()?, Vec::default())
             }
             PacketType::Unknown(_) => return Ok(()), // illegal
         });
@@ -947,6 +968,7 @@ impl Client {
         };
 
         if let Some(packet) = packet {
+            self.timeout.reset();
             self.lcp.from_recv(packet);
         }
 

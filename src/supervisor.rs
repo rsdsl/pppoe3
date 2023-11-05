@@ -1344,7 +1344,7 @@ impl Client {
             sa_family: AF_PPPOX as u16,
             sa_protocol: PX_PROTO_OE as u32,
             pppoe: pppoe_addr {
-                sid: self.session_id,
+                sid: self.session_id.to_be(),
                 remote: self.remote,
                 dev,
             },

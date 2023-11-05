@@ -1,8 +1,8 @@
-use crate::{Result, *};
+use crate::{Error, Result, *};
 
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::Ipv4Addr;
 use std::os::fd::AsRawFd;
 use std::time::Duration;
@@ -48,22 +48,10 @@ impl SessionFds {
         &self.1
     }
 
-    /// Returns a mutable reference to the file descriptor
-    /// that handles LCP, authentication and other link related traffic.
-    pub fn link_mut(&mut self) -> &mut File {
-        &mut self.1
-    }
-
     /// Returns an immutable reference to the file descriptor
     /// that handles NCP traffic.
     pub fn network(&self) -> &File {
         &self.2
-    }
-
-    /// Returns a mutable reference to the file descriptor
-    /// that handles NCP traffic.
-    pub fn network_mut(&mut self) -> &mut File {
-        &mut self.2
     }
 }
 
@@ -75,9 +63,29 @@ pub struct Client {
     password: String,
 
     session_id: u16,
+    local: MacAddr,
     remote: MacAddr,
 
     authenticated: bool,
+
+    last_id_remote: u8,
+
+    lcp_id_cfg: u8,
+    lcp_id_term: u8,
+    lcp_id_echo: u8,
+    lcp_id_remote: u8,
+
+    pap_id: u8,
+
+    chap_id_remote: u8,
+
+    ipcp_id_cfg: u8,
+    ipcp_id_term: u8,
+    ipcp_id_remote: u8,
+
+    ipv6cp_id_cfg: u8,
+    ipv6cp_id_term: u8,
+    ipv6cp_id_remote: u8,
 
     pppoe: PppoeClient,
     lcp: NegotiationProtocol<LcpOpt>,
@@ -103,21 +111,44 @@ impl Client {
         password: String,
         ipv4_addr: Option<Ipv4Addr>,
         ipv6_ifid: Option<u64>,
-    ) -> Self {
+    ) -> Result<Self> {
         let magic = rand::random();
         let peer_magic = rand::random();
 
         let ifid = ipv6_ifid.unwrap_or(rand::random());
 
-        Self {
-            link,
+        Ok(Self {
+            link: link.clone(),
             username,
             password,
 
             session_id: 0,
+            local: mac_address::mac_address_by_name(&link)?
+                .ok_or(Error::NoMacAddress(link))?
+                .bytes()
+                .into(),
             remote: MacAddr::BROADCAST,
 
             authenticated: false,
+
+            last_id_remote: 0,
+
+            lcp_id_cfg: 0,
+            lcp_id_term: 0,
+            lcp_id_echo: 0,
+            lcp_id_remote: 0,
+
+            pap_id: 0,
+
+            chap_id_remote: 0,
+
+            ipcp_id_cfg: 0,
+            ipcp_id_term: 0,
+            ipcp_id_remote: 0,
+
+            ipv6cp_id_cfg: 0,
+            ipv6cp_id_term: 0,
+            ipv6cp_id_remote: 0,
 
             pppoe: PppoeClient::new(None, None),
             lcp: NegotiationProtocol::new(ProtocolConfig {
@@ -192,7 +223,7 @@ impl Client {
                 max_configure: None,
                 max_failure: None,
             }),
-        }
+        })
     }
 
     /// Tries to keep a session open at all costs.
@@ -351,6 +382,35 @@ impl Client {
                     ncp_check.reset();
                 }
 
+                packet = self.pppoe.to_send() => self.send_pppoe(&sock_disc, packet).await?,
+                packet = self.lcp.to_send() => self.send_lcp(
+                    session_fds.as_ref().map(|fds| fds.link()),
+                    *self.lcp.our_options().iter().find_map(|option| {
+                        if let LcpOpt::MagicNumber(magic) = option {
+                            Some(magic)
+                        } else {
+                            None
+                        }
+                    }).ok_or(Error::NoMagicNumber)?,
+                    packet
+                ).await?,
+                packet = self.pap.to_send() => self.send_pap(
+                    session_fds.as_ref().map(|fds| fds.link()),
+                    packet
+                ).await?,
+                packet = self.chap.to_send() => self.send_chap(
+                    session_fds.as_ref().map(|fds| fds.link()),
+                    packet
+                ).await?,
+                packet = self.ipcp.to_send() => self.send_ipcp(
+                    session_fds.as_ref().map(|fds| fds.network()),
+                    packet
+                ).await?,
+                packet = self.ipv6cp.to_send() => self.send_ipv6cp(
+                    session_fds.as_ref().map(|fds| fds.network()),
+                    packet
+                ).await?,
+
                 _ = ncp_check.tick() => {
                     if *lcp_rx.borrow() && self.authenticated && !*ipcp_rx.borrow() && !*ipv6cp_rx.borrow() {
                         // No NCPs are up after 20 seconds, terminate the link.
@@ -387,6 +447,267 @@ impl Client {
                 }
             }
         }
+    }
+
+    /// Transforms a [`PppoePacket`] into a [`PppoePkt`] and sends it
+    /// over the network interface.
+    async fn send_pppoe(&self, sock_disc: &Async<Socket>, packet: PppoePacket) -> Result<()> {
+        let pkt = match packet.ty {
+            PppoeType::Padi => Some(PppoePkt::new_padi(
+                self.local,
+                vec![PppoeVal::ServiceName(String::new()).into()],
+            )),
+            PppoeType::Pado | PppoeType::Pads => None, // illegal
+            PppoeType::Padr => Some(PppoePkt::new_padr(
+                self.remote,
+                self.local,
+                if let Some(ac_cookie) = packet.ac_cookie {
+                    vec![
+                        PppoeVal::ServiceName(String::new()).into(),
+                        PppoeVal::AcCookie(ac_cookie).into(),
+                    ]
+                } else {
+                    vec![PppoeVal::ServiceName(String::new()).into()]
+                },
+            )),
+            PppoeType::Padt => Some(PppoePkt::new_padt(
+                self.remote,
+                self.local,
+                self.session_id,
+                vec![],
+            )),
+        };
+
+        if let Some(pkt) = pkt {
+            let mut buf = Vec::new();
+            pkt.serialize(&mut buf)?;
+
+            sock_disc.write_with(|mut io| io.write(&buf)).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Transforms a [`Packet`] into an [`LcpPkt`] and sends it
+    /// over the PPP session if available.
+    async fn send_lcp(
+        &mut self,
+        file: Option<&File>,
+        magic: u32,
+        packet: Packet<LcpOpt>,
+    ) -> Result<()> {
+        let pkt = PppPkt::new_lcp(match packet.ty {
+            PacketType::ConfigureRequest => {
+                self.lcp_id_cfg = rand::random();
+                LcpPkt::new_configure_request(
+                    self.lcp_id_cfg,
+                    packet.options.into_iter().map(|opt| opt.into()).collect(),
+                )
+            }
+            PacketType::ConfigureAck => LcpPkt::new_configure_ack(
+                self.lcp_id_remote,
+                packet.options.into_iter().map(|opt| opt.into()).collect(),
+            ),
+            PacketType::ConfigureNak => LcpPkt::new_configure_nak(
+                self.lcp_id_remote,
+                packet.options.into_iter().map(|opt| opt.into()).collect(),
+            ),
+            PacketType::ConfigureReject => LcpPkt::new_configure_reject(
+                self.lcp_id_remote,
+                packet.options.into_iter().map(|opt| opt.into()).collect(),
+            ),
+            PacketType::TerminateRequest => {
+                self.lcp_id_term = rand::random();
+                LcpPkt::new_terminate_request(self.lcp_id_term, Vec::default())
+            }
+            PacketType::TerminateAck => {
+                LcpPkt::new_terminate_ack(self.lcp_id_remote, Vec::default())
+            }
+            PacketType::CodeReject => LcpPkt::new_code_reject(
+                self.lcp_id_remote,
+                vec![self.lcp_id_remote, packet.rejected_code.into()],
+            ),
+            PacketType::ProtocolReject => LcpPkt::new_protocol_reject(
+                self.last_id_remote,
+                packet.rejected_protocol,
+                Vec::default(),
+            ),
+            PacketType::EchoRequest => {
+                self.lcp_id_echo = rand::random();
+                LcpPkt::new_echo_request(self.lcp_id_echo, magic, Vec::default())
+            }
+            PacketType::EchoReply => {
+                LcpPkt::new_echo_reply(self.lcp_id_remote, magic, Vec::default())
+            }
+            PacketType::DiscardRequest => {
+                LcpPkt::new_discard_request(rand::random(), magic, Vec::default())
+            }
+            PacketType::Unknown(_) => return Ok(()), // illegal
+        });
+
+        if let Some(mut file) = file {
+            let mut buf = Vec::new();
+            pkt.serialize(&mut buf)?;
+
+            file.write_all(&buf)?;
+        }
+
+        Ok(())
+    }
+
+    /// Transforms a [`PapPacket`] into a [`PapPkt`] and sends it
+    /// over the PPP session if available.
+    async fn send_pap(&mut self, file: Option<&File>, packet: PapPacket) -> Result<()> {
+        let pkt = PppPkt::new_pap(match packet {
+            PapPacket::AuthenticateRequest => {
+                self.pap_id = rand::random();
+                PapPkt::new_authenticate_request(
+                    self.pap_id,
+                    self.username.clone(),
+                    self.password.clone(),
+                )
+            }
+            PapPacket::AuthenticateAck | PapPacket::AuthenticateNak => return Ok(()), // illegal
+            PapPacket::TerminateLower => {
+                self.lcp.close();
+                return Ok(());
+            }
+        });
+
+        if let Some(mut file) = file {
+            let mut buf = Vec::new();
+            pkt.serialize(&mut buf)?;
+
+            file.write_all(&buf)?;
+        }
+
+        Ok(())
+    }
+
+    /// Transforms a [`ChapPacket`] into a [`ChapPkt`] and sends it
+    /// over the PPP session if available.
+    async fn send_chap(&mut self, file: Option<&File>, packet: ChapPacket) -> Result<()> {
+        let pkt = PppPkt::new_chap(match packet.ty {
+            ChapType::Challenge | ChapType::Success | ChapType::Failure => return Ok(()), // illegal
+            ChapType::Response => {
+                let mut hash_input = Vec::new();
+
+                hash_input.push(self.chap_id_remote);
+                hash_input.extend_from_slice(self.password.as_bytes());
+                hash_input.extend_from_slice(&packet.data);
+
+                let hash = md5::compute(hash_input).to_vec();
+
+                ChapPkt::new_response(self.chap_id_remote, hash, self.username.clone())
+            }
+            ChapType::TerminateLower => {
+                self.lcp.close();
+                return Ok(());
+            }
+        });
+
+        if let Some(mut file) = file {
+            let mut buf = Vec::new();
+            pkt.serialize(&mut buf)?;
+
+            file.write_all(&buf)?;
+        }
+
+        Ok(())
+    }
+
+    /// Transforms a [`Packet`] into an [`IpcpPkt`] and sends it
+    /// over the PPP session if available.
+    async fn send_ipcp(&mut self, file: Option<&File>, packet: Packet<IpcpOpt>) -> Result<()> {
+        let pkt = PppPkt::new_ipcp(match packet.ty {
+            PacketType::ConfigureRequest => {
+                self.ipcp_id_cfg = rand::random();
+                IpcpPkt::new_configure_request(
+                    self.ipcp_id_cfg,
+                    packet.options.into_iter().map(|opt| opt.into()).collect(),
+                )
+            }
+            PacketType::ConfigureAck => IpcpPkt::new_configure_ack(
+                self.ipcp_id_remote,
+                packet.options.into_iter().map(|opt| opt.into()).collect(),
+            ),
+            PacketType::ConfigureNak => IpcpPkt::new_configure_nak(
+                self.ipcp_id_remote,
+                packet.options.into_iter().map(|opt| opt.into()).collect(),
+            ),
+            PacketType::ConfigureReject => IpcpPkt::new_configure_reject(
+                self.ipcp_id_remote,
+                packet.options.into_iter().map(|opt| opt.into()).collect(),
+            ),
+            PacketType::TerminateRequest => {
+                self.ipcp_id_term = rand::random();
+                IpcpPkt::new_terminate_request(self.ipcp_id_term, Vec::default())
+            }
+            PacketType::TerminateAck => {
+                IpcpPkt::new_terminate_ack(self.ipcp_id_remote, Vec::default())
+            }
+            PacketType::CodeReject => IpcpPkt::new_code_reject(
+                self.ipcp_id_remote,
+                vec![self.ipcp_id_remote, packet.rejected_code.into()],
+            ),
+            _ => return Ok(()), // illegal
+        });
+
+        if let Some(mut file) = file {
+            let mut buf = Vec::new();
+            pkt.serialize(&mut buf)?;
+
+            file.write_all(&buf)?;
+        }
+
+        Ok(())
+    }
+
+    /// Transforms a [`Packet`] into an [`Ipv6cpPkt`] and sends it
+    /// over the PPP session if available.
+    async fn send_ipv6cp(&mut self, file: Option<&File>, packet: Packet<Ipv6cpOpt>) -> Result<()> {
+        let pkt = PppPkt::new_ipv6cp(match packet.ty {
+            PacketType::ConfigureRequest => {
+                self.ipv6cp_id_cfg = rand::random();
+                Ipv6cpPkt::new_configure_request(
+                    self.ipv6cp_id_cfg,
+                    packet.options.into_iter().map(|opt| opt.into()).collect(),
+                )
+            }
+            PacketType::ConfigureAck => Ipv6cpPkt::new_configure_ack(
+                self.ipv6cp_id_remote,
+                packet.options.into_iter().map(|opt| opt.into()).collect(),
+            ),
+            PacketType::ConfigureNak => Ipv6cpPkt::new_configure_nak(
+                self.ipv6cp_id_remote,
+                packet.options.into_iter().map(|opt| opt.into()).collect(),
+            ),
+            PacketType::ConfigureReject => Ipv6cpPkt::new_configure_reject(
+                self.ipv6cp_id_remote,
+                packet.options.into_iter().map(|opt| opt.into()).collect(),
+            ),
+            PacketType::TerminateRequest => {
+                self.ipv6cp_id_term = rand::random();
+                Ipv6cpPkt::new_terminate_request(self.ipv6cp_id_term, Vec::default())
+            }
+            PacketType::TerminateAck => {
+                Ipv6cpPkt::new_terminate_ack(self.ipv6cp_id_remote, Vec::default())
+            }
+            PacketType::CodeReject => Ipv6cpPkt::new_code_reject(
+                self.ipv6cp_id_remote,
+                vec![self.ipv6cp_id_remote, packet.rejected_code.into()],
+            ),
+            _ => return Ok(()), // illegal
+        });
+
+        if let Some(mut file) = file {
+            let mut buf = Vec::new();
+            pkt.serialize(&mut buf)?;
+
+            file.write_all(&buf)?;
+        }
+
+        Ok(())
     }
 
     /// Transforms a [`PppoePkt`] into a [`PppoePacket`] and feeds it
@@ -469,19 +790,19 @@ impl Client {
             LcpData::ConfigureRequest(cfg_req) => Some(Packet {
                 ty: PacketType::ConfigureRequest,
                 options: cfg_req.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
             LcpData::ConfigureAck(cfg_ack) => Some(Packet {
                 ty: PacketType::ConfigureAck,
                 options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
             LcpData::ConfigureNak(cfg_nak) => Some(Packet {
                 ty: PacketType::ConfigureNak,
                 options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
             LcpData::ConfigureReject(cfg_reject) => Some(Packet {
@@ -491,19 +812,19 @@ impl Client {
                     .into_iter()
                     .map(|opt| opt.value)
                     .collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
             LcpData::TerminateRequest(_) => Some(Packet {
                 ty: PacketType::TerminateRequest,
                 options: Vec::default(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
             LcpData::TerminateAck(_) => Some(Packet {
                 ty: PacketType::TerminateAck,
                 options: Vec::default(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
             LcpData::CodeReject(code_reject) => Some(Packet {
@@ -517,7 +838,7 @@ impl Client {
                     self.ipcp.from_recv(Packet {
                         ty: PacketType::ProtocolReject,
                         options: Vec::default(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: protocol_reject.protocol,
                     });
 
@@ -527,7 +848,7 @@ impl Client {
                     self.ipv6cp.from_recv(Packet {
                         ty: PacketType::ProtocolReject,
                         options: Vec::default(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: protocol_reject.protocol,
                     });
 
@@ -537,26 +858,26 @@ impl Client {
                 _ => Some(Packet {
                     ty: PacketType::ProtocolReject,
                     options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
+                    rejected_code: PacketType::Unknown(0),
                     rejected_protocol: protocol_reject.protocol,
                 }),
             },
             LcpData::EchoRequest(_) => Some(Packet {
                 ty: PacketType::EchoRequest,
                 options: Vec::default(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
             LcpData::EchoReply(_) => Some(Packet {
                 ty: PacketType::EchoReply,
                 options: Vec::default(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
             LcpData::DiscardRequest(_) => Some(Packet {
                 ty: PacketType::DiscardRequest,
                 options: Vec::default(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
         };
@@ -582,22 +903,18 @@ impl Client {
         self.chap.from_recv(match pkt.data {
             ChapData::Challenge(challenge) => ChapPacket {
                 ty: ChapType::Challenge,
-                id: pkt.identifier,
                 data: challenge.value,
             },
             ChapData::Response(response) => ChapPacket {
                 ty: ChapType::Response,
-                id: pkt.identifier,
                 data: response.value,
             },
             ChapData::Success(_) => ChapPacket {
                 ty: ChapType::Success,
-                id: pkt.identifier,
                 data: Vec::default(),
             },
             ChapData::Failure(_) => ChapPacket {
                 ty: ChapType::Failure,
-                id: pkt.identifier,
                 data: Vec::default(),
             },
         });
@@ -610,19 +927,19 @@ impl Client {
             IpcpData::ConfigureRequest(cfg_req) => Packet {
                 ty: PacketType::ConfigureRequest,
                 options: cfg_req.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             IpcpData::ConfigureAck(cfg_ack) => Packet {
                 ty: PacketType::ConfigureAck,
                 options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             IpcpData::ConfigureNak(cfg_nak) => Packet {
                 ty: PacketType::ConfigureNak,
                 options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             IpcpData::ConfigureReject(cfg_reject) => Packet {
@@ -632,19 +949,19 @@ impl Client {
                     .into_iter()
                     .map(|opt| opt.value)
                     .collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             IpcpData::TerminateRequest(_) => Packet {
                 ty: PacketType::TerminateRequest,
                 options: Vec::default(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             IpcpData::TerminateAck(_) => Packet {
                 ty: PacketType::TerminateAck,
                 options: Vec::default(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             IpcpData::CodeReject(code_reject) => Packet {
@@ -663,19 +980,19 @@ impl Client {
             Ipv6cpData::ConfigureRequest(cfg_req) => Packet {
                 ty: PacketType::ConfigureRequest,
                 options: cfg_req.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             Ipv6cpData::ConfigureAck(cfg_ack) => Packet {
                 ty: PacketType::ConfigureAck,
                 options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             Ipv6cpData::ConfigureNak(cfg_nak) => Packet {
                 ty: PacketType::ConfigureNak,
                 options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             Ipv6cpData::ConfigureReject(cfg_reject) => Packet {
@@ -685,19 +1002,19 @@ impl Client {
                     .into_iter()
                     .map(|opt| opt.value)
                     .collect(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             Ipv6cpData::TerminateRequest(_) => Packet {
                 ty: PacketType::TerminateRequest,
                 options: Vec::default(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             Ipv6cpData::TerminateAck(_) => Packet {
                 ty: PacketType::TerminateAck,
                 options: Vec::default(),
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
             Ipv6cpData::CodeReject(code_reject) => Packet {

@@ -42,6 +42,25 @@ pub enum PacketType {
     Unknown,
 }
 
+impl From<u8> for PacketType {
+    fn from(code: u8) -> Self {
+        match code {
+            1 => Self::ConfigureRequest,
+            2 => Self::ConfigureAck,
+            3 => Self::ConfigureNak,
+            4 => Self::ConfigureReject,
+            5 => Self::TerminateRequest,
+            6 => Self::TerminateAck,
+            7 => Self::CodeReject,
+            8 => Self::ProtocolReject,
+            9 => Self::EchoRequest,
+            10 => Self::EchoReply,
+            11 => Self::DiscardRequest,
+            _ => Self::Unknown,
+        }
+    }
+}
+
 /// A packet that can be a Configure-Request, Configure-Ack, Configure-Nak,
 /// Configure-Reject, Terminate-Request or Terminate-Ack.
 #[derive(Debug)]

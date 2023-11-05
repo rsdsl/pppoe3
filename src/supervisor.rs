@@ -258,7 +258,7 @@ impl Client {
     /// * `v4_tx` - Channel sender for IPv4 configuration updates.
     /// * `v6_tx` - Channel sender for IPv6 configuration updates.
     pub async fn run(
-        &mut self,
+        mut self,
         v4_tx: mpsc::UnboundedSender<Option<Ipv4Config>>,
         v6_tx: mpsc::UnboundedSender<Option<Ipv6Config>>,
     ) -> Result<()> {

@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
             .map(|v6| (u128::from(v6.laddr) & 0xffffffffffffffff) as u64),
     )?;
 
-    let mut join_handle = tokio::spawn(client.run(v4_tx, v6_tx));
+    let mut join_handle = tokio::spawn(client.run(v4_tx.clone(), v6_tx.clone()));
 
     loop {
         tokio::select! {

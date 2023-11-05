@@ -1,9 +1,8 @@
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 
 use tokio::sync::mpsc;
 
 use rsdsl_ip_config::DsConfig;
-use rsdsl_netlinkd::link;
 use rsdsl_pppoe3::{Client, Error, Result};
 use serde::{Deserialize, Serialize};
 use sysinfo::{ProcessExt, Signal, System, SystemExt};
@@ -16,13 +15,17 @@ struct Config {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("[info] wait for up eth1");
-    link::wait_up("eth1".into())?;
+    println!("[info] init");
 
     let mut config_file = File::open("/data/pppoe.conf")?;
     let config: Config = serde_json::from_reader(&mut config_file)?;
 
-    let mut ds_config_file = File::open(rsdsl_ip_config::LOCATION)?;
+    let mut ds_config_file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(rsdsl_ip_config::LOCATION)?;
     let mut ds_config: DsConfig =
         serde_json::from_reader(&mut ds_config_file).unwrap_or(DsConfig::default());
 

@@ -615,11 +615,109 @@ impl Client {
 
     /// Transforms an [`IpcpPkt`] into an [`IpcpPacket`] and feeds it
     /// into the IPCP state machine.
-    fn handle_ipcp(&mut self, pkt: IpcpPkt) {}
+    fn handle_ipcp(&mut self, pkt: IpcpPkt) {
+        self.ipcp.from_recv(match pkt.data {
+            IpcpData::ConfigureRequest(cfg_req) => Packet {
+                ty: PacketType::ConfigureRequest,
+                options: cfg_req.options.into_iter().map(|opt| opt.value).collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            IpcpData::ConfigureAck(cfg_ack) => Packet {
+                ty: PacketType::ConfigureAck,
+                options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            IpcpData::ConfigureNak(cfg_nak) => Packet {
+                ty: PacketType::ConfigureNak,
+                options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            IpcpData::ConfigureReject(cfg_reject) => Packet {
+                ty: PacketType::ConfigureReject,
+                options: cfg_reject
+                    .options
+                    .into_iter()
+                    .map(|opt| opt.value)
+                    .collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            IpcpData::TerminateRequest(_) => Packet {
+                ty: PacketType::TerminateRequest,
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            IpcpData::TerminateAck(_) => Packet {
+                ty: PacketType::TerminateAck,
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            IpcpData::CodeReject(code_reject) => Packet {
+                ty: PacketType::CodeReject,
+                options: Vec::default(),
+                rejected_code: code_reject.pkt[1].into(),
+                rejected_protocol: 0,
+            },
+        });
+    }
 
     /// Transforms an [`Ipv6cpPkt`] into an [`Ipv6cpPacket`] and feeds it
     /// into the IPv6CP state machine.
-    fn handle_ipv6cp(&mut self, pkt: Ipv6cpPkt) {}
+    fn handle_ipv6cp(&mut self, pkt: Ipv6cpPkt) {
+        self.ipv6cp.from_recv(match pkt.data {
+            Ipv6cpData::ConfigureRequest(cfg_req) => Packet {
+                ty: PacketType::ConfigureRequest,
+                options: cfg_req.options.into_iter().map(|opt| opt.value).collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            Ipv6cpData::ConfigureAck(cfg_ack) => Packet {
+                ty: PacketType::ConfigureAck,
+                options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            Ipv6cpData::ConfigureNak(cfg_nak) => Packet {
+                ty: PacketType::ConfigureNak,
+                options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            Ipv6cpData::ConfigureReject(cfg_reject) => Packet {
+                ty: PacketType::ConfigureReject,
+                options: cfg_reject
+                    .options
+                    .into_iter()
+                    .map(|opt| opt.value)
+                    .collect(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            Ipv6cpData::TerminateRequest(_) => Packet {
+                ty: PacketType::TerminateRequest,
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            Ipv6cpData::TerminateAck(_) => Packet {
+                ty: PacketType::TerminateAck,
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown,
+                rejected_protocol: 0,
+            },
+            Ipv6cpData::CodeReject(code_reject) => Packet {
+                ty: PacketType::CodeReject,
+                options: Vec::default(),
+                rejected_code: code_reject.pkt[1].into(),
+                rejected_protocol: 0,
+            },
+        });
+    }
 
     /// Creates a new socket for PPPoE Discovery traffic.
     /// Used by the PPPoE implementation.

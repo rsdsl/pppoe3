@@ -119,6 +119,13 @@ impl PppoeClient {
                 self.restart_timer.reset();
                 self.restart_counter = -1;
 
+                self.output_tx
+                    .send(PppoePacket {
+                        ty: PppoeType::Padi,
+                        ac_cookie: None,
+                    })
+                    .expect("output channel is closed");
+
                 self.state = PppoeClientState::InitiationSent;
             }
             PppoeClientState::InitiationSent

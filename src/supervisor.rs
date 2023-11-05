@@ -554,21 +554,25 @@ impl Client {
                 }
                 Some(result) = option_read(ctl, &mut link_buf) => {
                     let n = result?;
-                    let mut link_buf = &link_buf[..n];
+                    if n != 0 { // Real message, session not closed.
+                        let mut link_buf = &link_buf[..n];
 
-                    let mut pkt = PppPkt::default();
-                    pkt.deserialize(&mut link_buf)?;
+                        let mut pkt = PppPkt::default();
+                        pkt.deserialize(&mut link_buf)?;
 
-                    self.handle_ppp(pkt)?;
+                        self.handle_ppp(pkt)?;
+                    }
                 }
                 Some(result) = option_read(ppp_dev, &mut net_buf) => {
                     let n = result?;
-                    let mut net_buf = &net_buf[..n];
+                    if n != 0 { // Real message, session not closed.
+                        let mut net_buf = &net_buf[..n];
 
-                    let mut pkt = PppPkt::default();
-                    pkt.deserialize(&mut net_buf)?;
+                        let mut pkt = PppPkt::default();
+                        pkt.deserialize(&mut net_buf)?;
 
-                    self.handle_ppp(pkt)?;
+                        self.handle_ppp(pkt)?;
+                    }
                 }
             }
         }

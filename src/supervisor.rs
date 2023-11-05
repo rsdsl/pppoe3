@@ -670,6 +670,7 @@ impl Client {
             pkt.serialize(&mut buf)?;
 
             file.write_all(&buf).await?;
+            file.flush().await?;
         }
 
         Ok(())
@@ -699,6 +700,7 @@ impl Client {
             pkt.serialize(&mut buf)?;
 
             file.write_all(&buf).await?;
+            file.flush().await?;
         }
 
         Ok(())
@@ -731,6 +733,7 @@ impl Client {
             pkt.serialize(&mut buf)?;
 
             file.write_all(&buf).await?;
+            file.flush().await?;
         }
 
         Ok(())
@@ -778,6 +781,7 @@ impl Client {
             pkt.serialize(&mut buf)?;
 
             file.write_all(&buf).await?;
+            file.flush().await?;
         }
 
         Ok(())
@@ -829,6 +833,7 @@ impl Client {
             pkt.serialize(&mut buf)?;
 
             file.write_all(&buf).await?;
+            file.flush().await?;
         }
 
         Ok(())
@@ -1409,13 +1414,13 @@ impl Client {
 
 async fn option_read(file: Option<&mut File>, buf: &mut [u8]) -> Option<io::Result<usize>> {
     match file {
-        Some(file) => match file.read(buf).await {
-            Ok(n) => Some(Ok(n)),
-            Err(e) => {
-                if e.kind() == io::ErrorKind::WouldBlock {
-                    None
-                } else {
-                    Some(Err(e))
+        Some(file) => loop {
+            match file.read(buf).await {
+                Ok(n) => return Some(Ok(n)),
+                Err(e) => {
+                    if e.kind() != io::ErrorKind::WouldBlock {
+                        return Some(Err(e));
+                    }
                 }
             }
         },

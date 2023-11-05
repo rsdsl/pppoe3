@@ -287,6 +287,8 @@ impl Client {
                     if is_active {
                         session_fds = Some(self.new_session_fds()?);
                         self.lcp.up();
+
+                        println!("[info] <- ({}) confirm pppoe session", self.session_id);
                     } else {
                         session_fds = None;
 
@@ -294,6 +296,8 @@ impl Client {
                         self.remote = MacAddr::BROADCAST;
 
                         self.lcp.down();
+
+                        println!("[info] <> terminate pppoe session");
                     }
                 }
                 result = lcp_rx.changed() => {
@@ -313,14 +317,22 @@ impl Client {
                         self.chap.up();
 
                         match our_auth {
-                            Some(AuthProto::Pap) => self.pap.open(),
-                            Some(AuthProto::Chap(ChapAlgorithm::Md5)) => self.chap.open(),
+                            Some(AuthProto::Pap) => {
+                                self.pap.open();
+                                println!("[info] -> authenticate pap");
+                            }
+                            Some(AuthProto::Chap(ChapAlgorithm::Md5)) => {
+                                self.chap.open();
+                                println!("[info] -> authenticate chap-md5");
+                            }
                             None => {
                                 self.authenticated = true;
                                 ncp_check.reset();
 
                                 self.ipcp.up();
                                 self.ipv6cp.up();
+
+                                println!("[info] <- no authentication required");
                             }
                         }
                     } else {
@@ -333,6 +345,8 @@ impl Client {
 
                         self.pap.close();
                         self.chap.close();
+
+                        println!("[info] <> terminate lcp");
                     }
                 }
                 result = pap_rx.changed() => {
@@ -345,6 +359,8 @@ impl Client {
 
                         self.ipcp.up();
                         self.ipv6cp.up();
+
+                        println!("[info] <- pap success");
                     } // PAP cannot go down once it has opened successfully.
                 }
                 result = chap_rx.changed() => {
@@ -357,9 +373,13 @@ impl Client {
 
                         self.ipcp.up();
                         self.ipv6cp.up();
+
+                        println!("[info] <- chap success");
                     } else {
                         self.authenticated = false;
                         self.lcp.close();
+
+                        println!("[info] <- chap reauthentication failure");
                     }
                 }
                 result = ipcp_rx.changed() => {
@@ -367,9 +387,11 @@ impl Client {
 
                     let is_opened = *ipcp_rx.borrow_and_update();
                     if is_opened {
-                        todo!("write v4 success to ds config and inform netlinkd")
+                        todo!("write v4 success to ds config and inform netlinkd");
+                        println!("[info] <> open ipcp");
                     } else {
-                        todo!("write v4 invalidation to ds config and inform netlinkd")
+                        todo!("write v4 invalidation to ds config and inform netlinkd");
+                        println!("[info] <> terminate ipcp");
                     }
                 }
                 result = ipv6cp_rx.changed() => {
@@ -377,9 +399,11 @@ impl Client {
 
                     let is_opened = *ipv6cp_rx.borrow_and_update();
                     if is_opened {
-                        todo!("write v6 success to ds config and inform netlinkd and dhcp6")
+                        todo!("write v6 success to ds config and inform netlinkd and dhcp6");
+                        println!("[info] <> open ipv6cp");
                     } else {
-                        todo!("write v6 invalidation to ds config and inform netlinkd and dhcp6")
+                        todo!("write v6 invalidation to ds config and inform netlinkd and dhcp6");
+                        println!("[info] <> terminate ipv6cp");
                     }
                 }
 
@@ -445,12 +469,16 @@ impl Client {
                     if *lcp_rx.borrow() {
                         // No LCP traffic has been received for 30 seconds, terminate the link.
                         self.lcp.close();
+
+                        println!("[info] -> timeout");
                     }
                 }
                 _ = ncp_check.tick() => {
                     if *lcp_rx.borrow() && self.authenticated && !*ipcp_rx.borrow() && !*ipv6cp_rx.borrow() {
                         // No NCPs are up after 20 seconds, terminate the link.
                         self.lcp.close();
+
+                        println!("[info] -> no ncps after 20s");
                     }
                 }
 

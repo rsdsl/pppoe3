@@ -1357,6 +1357,10 @@ impl Client {
             .truncate(false)
             .open("/dev/ppp")?;
 
+        if unsafe { ioctls::pppiocattchan(ctl.as_raw_fd(), &chindex) } < 0 {
+            os_err!();
+        }
+
         let ppp_dev = OpenOptions::new()
             .read(true)
             .write(true)

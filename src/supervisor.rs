@@ -523,13 +523,6 @@ impl Client {
                 rejected_protocol: 0,
             }),
             LcpData::ProtocolReject(protocol_reject) => match protocol_reject.protocol {
-                // LCP, PAP, CHAP or anything else.
-                _ => Some(Packet {
-                    ty: PacketType::ProtocolReject,
-                    options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
-                    rejected_protocol: protocol_reject.protocol,
-                }),
                 IPCP => {
                     self.ipcp.from_recv(Packet {
                         ty: PacketType::ProtocolReject,
@@ -550,6 +543,13 @@ impl Client {
 
                     None
                 }
+                // LCP, PAP, CHAP or anything else.
+                _ => Some(Packet {
+                    ty: PacketType::ProtocolReject,
+                    options: Vec::default(),
+                    rejected_code: PacketType::Unknown,
+                    rejected_protocol: protocol_reject.protocol,
+                }),
             },
             LcpData::EchoRequest(_) => Some(Packet {
                 ty: PacketType::EchoRequest,

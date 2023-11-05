@@ -3,15 +3,17 @@ use crate::{Error, Result, *};
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::os::fd::AsRawFd;
 use std::time::Duration;
 use std::{io, mem};
 
+use tokio::sync::mpsc;
 use tokio::time::Interval;
 
 use async_io::Async;
 use ppproperly::*;
+use rsdsl_ip_config::{Ipv4Config, Ipv6Config};
 use socket2::{SockAddr, Socket, Type};
 
 macro_rules! os_err {
@@ -250,7 +252,16 @@ impl Client {
 
     /// Tries to keep a session open at all costs.
     /// Blocks the caller forever unless a panic occurs.
-    pub async fn run(&mut self) -> Result<()> {
+    ///
+    /// # Arguments
+    ///
+    /// * `v4_tx` - Channel sender for IPv4 configuration updates.
+    /// * `v6_tx` - Channel sender for IPv6 configuration updates.
+    pub async fn run(
+        &mut self,
+        v4_tx: mpsc::UnboundedSender<Option<Ipv4Config>>,
+        v6_tx: mpsc::UnboundedSender<Option<Ipv6Config>>,
+    ) -> Result<()> {
         let sock_disc = self.new_discovery_socket()?;
         let mut session_fds: Option<SessionFds> = None;
 
@@ -387,10 +398,39 @@ impl Client {
 
                     let is_opened = *ipcp_rx.borrow_and_update();
                     if is_opened {
-                        todo!("write v4 success to ds config and inform netlinkd");
+                        let addr = self.ipcp.our_options().iter().find_map(|option| {
+                            if let IpcpOpt::IpAddr(addr) = option {
+                                Some(addr)
+                            } else {
+                                None
+                            }
+                        }).ok_or(Error::NoIpv4Addr)?.0;
+
+                        let dns1 = self.ipcp.our_options().iter().find_map(|option| {
+                            if let IpcpOpt::PrimaryDns(addr) = option {
+                                Some(addr)
+                            } else {
+                                None
+                            }
+                        }).ok_or(Error::NoIpv4Dns1)?.0;
+
+                        let dns2 = self.ipcp.our_options().iter().find_map(|option| {
+                            if let IpcpOpt::SecondaryDns(addr) = option {
+                                Some(addr)
+                            } else {
+                                None
+                            }
+                        }).ok_or(Error::NoIpv4Dns2)?.0;
+
+                        v4_tx.send(Some(Ipv4Config {
+                            addr,
+                            dns1,
+                            dns2,
+                        }))?;
+
                         println!("[info] <> open ipcp");
                     } else {
-                        todo!("write v4 invalidation to ds config and inform netlinkd");
+                        v4_tx.send(None)?;
                         println!("[info] <> terminate ipcp");
                     }
                 }
@@ -399,10 +439,24 @@ impl Client {
 
                     let is_opened = *ipv6cp_rx.borrow_and_update();
                     if is_opened {
-                        todo!("write v6 success to ds config and inform netlinkd and dhcp6");
+                        let lifid = self.ipv6cp.our_options().iter().map(|option| {
+                            let Ipv6cpOpt::InterfaceId(ifid) = option;
+                            ifid
+                        }).next().ok_or(Error::NoIpv6Local)?;
+
+                        let rifid = self.ipv6cp.peer_options().iter().map(|option| {
+                            let Ipv6cpOpt::InterfaceId(ifid) = option;
+                            ifid
+                        }).next().ok_or(Error::NoIpv6Remote)?;
+
+                        v6_tx.send(Some(Ipv6Config{
+                            laddr: ll(*lifid),
+                            raddr: ll(*rifid),
+                        }))?;
+
                         println!("[info] <> open ipv6cp");
                     } else {
-                        todo!("write v6 invalidation to ds config and inform netlinkd and dhcp6");
+                        v6_tx.send(None)?;
                         println!("[info] <> terminate ipv6cp");
                     }
                 }
@@ -1319,4 +1373,9 @@ impl Client {
 
 async fn option_read_with(file: Option<&File>, buf: &mut [u8]) -> Option<io::Result<usize>> {
     file.map(|mut file| file.read(buf))
+}
+
+/// Creates a link-local IPv6 address from a 64-bit interface identifier.
+fn ll(ifid: u64) -> Ipv6Addr {
+    ((0xfe80 << 112) | ifid as u128).into()
 }

@@ -1,12 +1,23 @@
 use std::{ffi, io};
 
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 
+use rsdsl_ip_config::{Ipv4Config, Ipv6Config};
 use thiserror::Error;
 
 /// An external error that prevents a supervisor from functioning.
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("got no ipv4 address")]
+    NoIpv4Addr,
+    #[error("got no ipv4 primary dns")]
+    NoIpv4Dns1,
+    #[error("got no ipv4 secondary dns")]
+    NoIpv4Dns2,
+    #[error("got no ipv6 link-local address")]
+    NoIpv6Local,
+    #[error("got no ipv6 link-local peer address")]
+    NoIpv6Remote,
     #[error("no mac address on interface {0}")]
     NoMacAddress(String),
     #[error("no magic number negotiated locally")]
@@ -17,6 +28,10 @@ pub enum Error {
     #[error("interface name contains nul byte: {0}")]
     Nul(#[from] ffi::NulError),
 
+    #[error("error sending Option<Ipv4Config> to tokio mpsc channel: {0}")]
+    MpscSendV4(#[from] mpsc::error::SendError<Option<Ipv4Config>>),
+    #[error("error sending Option<Ipv6Config> to tokio mpsc channel: {0}")]
+    MpscSendV6(#[from] mpsc::error::SendError<Option<Ipv6Config>>),
     #[error("error receiving from tokio watch channel: {0}")]
     WatchRecv(#[from] watch::error::RecvError),
 

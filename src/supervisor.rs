@@ -42,16 +42,6 @@ struct sockaddr_pppox {
 struct SessionFds(Socket, File, File);
 
 impl SessionFds {
-    /// Returns an immutable reference to the network interface control socket.
-    pub fn interface(&self) -> &Socket {
-        &self.0
-    }
-
-    /// Returns a mutable reference to the network interface control socket.
-    pub fn interface_mut(&mut self) -> &mut Socket {
-        &mut self.0
-    }
-
     /// Returns an immutable reference to the file descriptor
     /// that handles LCP, authentication and other link related traffic.
     pub fn link(&self) -> &File {

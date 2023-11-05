@@ -1,6 +1,7 @@
 use std::{ffi, io};
 
 use tokio::sync::{mpsc, watch};
+use tokio::task;
 
 use rsdsl_ip_config::{Ipv4Config, Ipv6Config};
 use thiserror::Error;
@@ -32,6 +33,8 @@ pub enum Error {
     #[error("interface name contains nul byte: {0}")]
     Nul(#[from] ffi::NulError),
 
+    #[error("error joining tokio task: {0}")]
+    Join(#[from] task::JoinError),
     #[error("error sending Option<Ipv4Config> to tokio mpsc channel: {0}")]
     MpscSendV4(#[from] mpsc::error::SendError<Option<Ipv4Config>>),
     #[error("error sending Option<Ipv6Config> to tokio mpsc channel: {0}")]

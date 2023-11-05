@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
             .map(|v6| (u128::from(v6.laddr) & 0xffffffffffffffff) as u64),
     )?;
 
-    tokio::spawn(client.run(v4_tx, v6_tx));
+    let mut join_handle = tokio::spawn(client.run(v4_tx, v6_tx));
 
     loop {
         tokio::select! {
@@ -67,6 +67,9 @@ async fn main() -> Result<()> {
                 } else {
                     println!("[info] <> ipv6: n/a");
                 }
+            }
+            result = &mut join_handle => {
+                result??; // This always fails, the task never exits with an Ok(_).
             }
         }
     }

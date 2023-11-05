@@ -268,7 +268,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             PacketType::ConfigureNak | PacketType::ConfigureReject => self.rcn(packet),
             PacketType::TerminateRequest => self.rtr(packet),
             PacketType::TerminateAck => self.rta(packet),
-            PacketType::Unknown => self.ruc(packet),
+            PacketType::Unknown(_) => self.ruc(packet),
             PacketType::CodeReject => {
                 if self.need_code(&packet.rejected_code) {
                     self.rxj_negative(packet)
@@ -288,7 +288,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::EchoReply,
                         options: Vec::default(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -310,7 +310,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -378,7 +378,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -420,7 +420,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::TerminateRequest,
                         options: Vec::default(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -440,7 +440,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::TerminateRequest,
                         options: Vec::default(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -503,7 +503,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 Some(Packet {
                     ty: PacketType::TerminateRequest,
                     options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
+                    rejected_code: PacketType::Unknown(0),
                     rejected_protocol: 0,
                 })
             }
@@ -513,7 +513,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 Some(Packet {
                     ty: PacketType::ConfigureRequest,
                     options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
+                    rejected_code: PacketType::Unknown(0),
                     rejected_protocol: 0,
                 })
             }
@@ -524,7 +524,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 Some(Packet {
                     ty: PacketType::ConfigureRequest,
                     options: self.request.clone(),
-                    rejected_code: PacketType::Unknown,
+                    rejected_code: PacketType::Unknown(0),
                     rejected_protocol: 0,
                 })
             }
@@ -570,7 +570,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 .send(Packet {
                     ty: PacketType::TerminateAck,
                     options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
+                    rejected_code: PacketType::Unknown(0),
                     rejected_protocol: 0,
                 })
                 .expect("output channel is closed"),
@@ -582,7 +582,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -592,7 +592,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureAck,
                         options: packet.options.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -608,7 +608,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureAck,
                         options: packet.options.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -627,7 +627,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureAck,
                         options: packet.options,
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -639,7 +639,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 .send(Packet {
                     ty: PacketType::ConfigureAck,
                     options: packet.options,
-                    rejected_code: PacketType::Unknown,
+                    rejected_code: PacketType::Unknown(0),
                     rejected_protocol: 0,
                 })
                 .expect("output channel is closed"),
@@ -654,7 +654,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -664,7 +664,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureAck,
                         options: packet.options.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -685,7 +685,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 .send(Packet {
                     ty: PacketType::TerminateAck,
                     options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
+                    rejected_code: PacketType::Unknown(0),
                     rejected_protocol: 0,
                 })
                 .expect("output channel is closed"),
@@ -697,7 +697,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -742,7 +742,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -766,7 +766,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 .send(Packet {
                     ty: PacketType::TerminateAck,
                     options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
+                    rejected_code: PacketType::Unknown(0),
                     rejected_protocol: 0,
                 })
                 .expect("output channel is closed"),
@@ -782,7 +782,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -809,7 +809,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -828,7 +828,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 .send(Packet {
                     ty: PacketType::TerminateAck,
                     options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
+                    rejected_code: PacketType::Unknown(0),
                     rejected_protocol: 0,
                 })
                 .expect("output channel is closed"),
@@ -843,7 +843,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -858,7 +858,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -876,7 +876,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -895,7 +895,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -918,7 +918,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 .send(Packet {
                     ty: PacketType::TerminateAck,
                     options: Vec::default(),
-                    rejected_code: PacketType::Unknown,
+                    rejected_code: PacketType::Unknown(0),
                     rejected_protocol: 0,
                 })
                 .expect("output channel is closed"),
@@ -927,7 +927,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::TerminateAck,
                         options: Vec::default(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -945,7 +945,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::TerminateAck,
                         options: Vec::default(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -987,7 +987,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::ConfigureRequest,
                         options: self.request.clone(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -1003,7 +1003,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             .send(Packet {
                 ty: PacketType::CodeReject,
                 options: Vec::default(),
-                rejected_code: packet.rejected_code,
+                rejected_code: packet.ty,
                 rejected_protocol: 0,
             })
             .expect("output channel is closed");
@@ -1051,7 +1051,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     .send(Packet {
                         ty: PacketType::TerminateRequest,
                         options: Vec::default(),
-                        rejected_code: PacketType::Unknown,
+                        rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
@@ -1096,7 +1096,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             PacketType::EchoRequest
             | PacketType::EchoReply
             | PacketType::DiscardRequest
-            | PacketType::Unknown => false,
+            | PacketType::Unknown(_) => false,
         }
     }
 
@@ -1157,7 +1157,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                     PacketType::ConfigureReject
                 },
                 options: nak,
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }
         } else {
@@ -1165,7 +1165,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             Packet {
                 ty: PacketType::ConfigureReject,
                 options: reject,
-                rejected_code: PacketType::Unknown,
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }
         }

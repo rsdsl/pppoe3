@@ -1,13 +1,14 @@
 use crate::{Error, Result, *};
 
 use std::ffi::CString;
-use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::os::fd::AsRawFd;
 use std::time::Duration;
 use std::{io, mem};
 
+use tokio::fs::{File, OpenOptions};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc;
 use tokio::time::Interval;
 
@@ -44,16 +45,21 @@ struct sockaddr_pppox {
 struct SessionFds(Socket, File, File);
 
 impl SessionFds {
-    /// Returns an immutable reference to the file descriptor
+    /// Returns a mutable reference to the file descriptor
     /// that handles LCP, authentication and other link related traffic.
-    pub fn link(&self) -> &File {
-        &self.1
+    pub fn link_mut(&mut self) -> &mut File {
+        &mut self.1
     }
 
-    /// Returns an immutable reference to the file descriptor
+    /// Returns a mutable reference to the file descriptor
     /// that handles NCP traffic.
-    pub fn network(&self) -> &File {
-        &self.2
+    pub fn network_mut(&mut self) -> &mut File {
+        &mut self.2
+    }
+
+    /// Returns mutable references to both traffic related file descriptors.
+    pub fn both_mut(&mut self) -> (&mut File, &mut File) {
+        (&mut self.1, &mut self.2)
     }
 }
 
@@ -289,13 +295,15 @@ impl Client {
         self.ipv6cp.open();
 
         loop {
+            let (ctl, ppp_dev) = session_fds.as_mut().map(|fds| fds.both_mut()).unzip();
+
             tokio::select! {
                 result = pppoe_rx.changed() => {
                     result?;
 
                     let is_active = *pppoe_rx.borrow_and_update();
                     if is_active {
-                        session_fds = Some(self.new_session_fds()?);
+                        session_fds = Some(self.new_session_fds().await?);
                         self.lcp.up();
 
                         println!("[info] <- ({}) confirm pppoe session", self.session_id);
@@ -484,23 +492,23 @@ impl Client {
 
                 packet = self.pppoe.to_send() => self.send_pppoe(&sock_disc, packet).await?,
                 packet = self.lcp.to_send() => self.send_lcp(
-                    session_fds.as_ref().map(|fds| fds.link()),
+                    session_fds.as_mut().map(|fds| fds.link_mut()),
                     packet
                 ).await?,
                 packet = self.pap.to_send() => self.send_pap(
-                    session_fds.as_ref().map(|fds| fds.link()),
+                    session_fds.as_mut().map(|fds| fds.link_mut()),
                     packet
                 ).await?,
                 packet = self.chap.to_send() => self.send_chap(
-                    session_fds.as_ref().map(|fds| fds.link()),
+                    session_fds.as_mut().map(|fds| fds.link_mut()),
                     packet
                 ).await?,
                 packet = self.ipcp.to_send() => self.send_ipcp(
-                    session_fds.as_ref().map(|fds| fds.network()),
+                    session_fds.as_mut().map(|fds| fds.network_mut()),
                     packet
                 ).await?,
                 packet = self.ipv6cp.to_send() => self.send_ipv6cp(
-                    session_fds.as_ref().map(|fds| fds.network()),
+                    session_fds.as_mut().map(|fds| fds.network_mut()),
                     packet
                 ).await?,
 
@@ -508,7 +516,7 @@ impl Client {
                     if *lcp_rx.borrow() {
                         // Send an LCP Echo-Request every 12 seconds.
                         self.send_lcp(
-                            session_fds.as_ref().map(|fds| fds.link()),
+                            session_fds.as_mut().map(|fds| fds.link_mut()),
                             Packet {
                                 ty: PacketType::EchoRequest,
                                 options: Vec::default(),
@@ -544,7 +552,7 @@ impl Client {
 
                     self.handle_pppoe(pkt);
                 }
-                Some(result) = option_read_with(session_fds.as_ref().map(|fds| fds.link()), &mut link_buf) => {
+                Some(result) = option_read(ctl, &mut link_buf) => {
                     let n = result?;
                     let mut link_buf = &link_buf[..n];
 
@@ -553,7 +561,7 @@ impl Client {
 
                     self.handle_ppp(pkt)?;
                 }
-                Some(result) = option_read_with(session_fds.as_ref().map(|fds| fds.network()), &mut net_buf) => {
+                Some(result) = option_read(ppp_dev, &mut net_buf) => {
                     let n = result?;
                     let mut net_buf = &net_buf[..n];
 
@@ -607,7 +615,7 @@ impl Client {
 
     /// Transforms a [`Packet`] into an [`LcpPkt`] and sends it
     /// over the PPP session if available.
-    async fn send_lcp(&mut self, file: Option<&File>, packet: Packet<LcpOpt>) -> Result<()> {
+    async fn send_lcp(&mut self, file: Option<&mut File>, packet: Packet<LcpOpt>) -> Result<()> {
         let pkt = PppPkt::new_lcp(match packet.ty {
             PacketType::ConfigureRequest => {
                 self.lcp_id_cfg = rand::random();
@@ -657,11 +665,11 @@ impl Client {
             PacketType::Unknown(_) => return Ok(()), // illegal
         });
 
-        if let Some(mut file) = file {
+        if let Some(file) = file {
             let mut buf = Vec::new();
             pkt.serialize(&mut buf)?;
 
-            file.write_all(&buf)?;
+            file.write_all(&buf).await?;
         }
 
         Ok(())
@@ -669,7 +677,7 @@ impl Client {
 
     /// Transforms a [`PapPacket`] into a [`PapPkt`] and sends it
     /// over the PPP session if available.
-    async fn send_pap(&mut self, file: Option<&File>, packet: PapPacket) -> Result<()> {
+    async fn send_pap(&mut self, file: Option<&mut File>, packet: PapPacket) -> Result<()> {
         let pkt = PppPkt::new_pap(match packet {
             PapPacket::AuthenticateRequest => {
                 self.pap_id = rand::random();
@@ -686,11 +694,11 @@ impl Client {
             }
         });
 
-        if let Some(mut file) = file {
+        if let Some(file) = file {
             let mut buf = Vec::new();
             pkt.serialize(&mut buf)?;
 
-            file.write_all(&buf)?;
+            file.write_all(&buf).await?;
         }
 
         Ok(())
@@ -698,7 +706,7 @@ impl Client {
 
     /// Transforms a [`ChapPacket`] into a [`ChapPkt`] and sends it
     /// over the PPP session if available.
-    async fn send_chap(&mut self, file: Option<&File>, packet: ChapPacket) -> Result<()> {
+    async fn send_chap(&mut self, file: Option<&mut File>, packet: ChapPacket) -> Result<()> {
         let pkt = PppPkt::new_chap(match packet.ty {
             ChapType::Challenge | ChapType::Success | ChapType::Failure => return Ok(()), // illegal
             ChapType::Response => {
@@ -718,11 +726,11 @@ impl Client {
             }
         });
 
-        if let Some(mut file) = file {
+        if let Some(file) = file {
             let mut buf = Vec::new();
             pkt.serialize(&mut buf)?;
 
-            file.write_all(&buf)?;
+            file.write_all(&buf).await?;
         }
 
         Ok(())
@@ -730,7 +738,7 @@ impl Client {
 
     /// Transforms a [`Packet`] into an [`IpcpPkt`] and sends it
     /// over the PPP session if available.
-    async fn send_ipcp(&mut self, file: Option<&File>, packet: Packet<IpcpOpt>) -> Result<()> {
+    async fn send_ipcp(&mut self, file: Option<&mut File>, packet: Packet<IpcpOpt>) -> Result<()> {
         let pkt = PppPkt::new_ipcp(match packet.ty {
             PacketType::ConfigureRequest => {
                 self.ipcp_id_cfg = rand::random();
@@ -765,11 +773,11 @@ impl Client {
             _ => return Ok(()), // illegal
         });
 
-        if let Some(mut file) = file {
+        if let Some(file) = file {
             let mut buf = Vec::new();
             pkt.serialize(&mut buf)?;
 
-            file.write_all(&buf)?;
+            file.write_all(&buf).await?;
         }
 
         Ok(())
@@ -777,7 +785,11 @@ impl Client {
 
     /// Transforms a [`Packet`] into an [`Ipv6cpPkt`] and sends it
     /// over the PPP session if available.
-    async fn send_ipv6cp(&mut self, file: Option<&File>, packet: Packet<Ipv6cpOpt>) -> Result<()> {
+    async fn send_ipv6cp(
+        &mut self,
+        file: Option<&mut File>,
+        packet: Packet<Ipv6cpOpt>,
+    ) -> Result<()> {
         let pkt = PppPkt::new_ipv6cp(match packet.ty {
             PacketType::ConfigureRequest => {
                 self.ipv6cp_id_cfg = rand::random();
@@ -812,11 +824,11 @@ impl Client {
             _ => return Ok(()), // illegal
         });
 
-        if let Some(mut file) = file {
+        if let Some(file) = file {
             let mut buf = Vec::new();
             pkt.serialize(&mut buf)?;
 
-            file.write_all(&buf)?;
+            file.write_all(&buf).await?;
         }
 
         Ok(())
@@ -1314,8 +1326,10 @@ impl Client {
     ///
     /// It is desirable to drop the structure before creating a new one
     /// to ensure the deletion if the old interface.
-    fn new_session_fds(&self) -> Result<SessionFds> {
-        use libc::{sockaddr_storage, socklen_t, AF_PPPOX, IFNAMSIZ};
+    async fn new_session_fds(&self) -> Result<SessionFds> {
+        use libc::{
+            fcntl, sockaddr_storage, socklen_t, AF_PPPOX, F_GETFL, F_SETFL, IFNAMSIZ, O_NONBLOCK,
+        };
 
         const PX_PROTO_OE: i32 = 0;
 
@@ -1355,9 +1369,15 @@ impl Client {
             .write(true)
             .create(false)
             .truncate(false)
-            .open("/dev/ppp")?;
+            .open("/dev/ppp")
+            .await?;
 
         if unsafe { ioctls::pppiocattchan(ctl.as_raw_fd(), &chindex) } < 0 {
+            os_err!();
+        }
+
+        let flags = unsafe { fcntl(ctl.as_raw_fd(), F_GETFL) };
+        if flags < 0 || unsafe { fcntl(ctl.as_raw_fd(), F_SETFL, flags | O_NONBLOCK) } < 0 {
             os_err!();
         }
 
@@ -1366,7 +1386,8 @@ impl Client {
             .write(true)
             .create(false)
             .truncate(false)
-            .open("/dev/ppp")?;
+            .open("/dev/ppp")
+            .await?;
 
         let mut ifunit = -1;
         if unsafe { ioctls::pppiocnewunit(ppp_dev.as_raw_fd(), &mut ifunit) } < 0 {
@@ -1377,12 +1398,29 @@ impl Client {
             os_err!();
         }
 
+        let flags = unsafe { fcntl(ppp_dev.as_raw_fd(), F_GETFL) };
+        if flags < 0 || unsafe { fcntl(ppp_dev.as_raw_fd(), F_SETFL, flags | O_NONBLOCK) } < 0 {
+            os_err!();
+        }
+
         Ok(SessionFds(sock, ctl, ppp_dev))
     }
 }
 
-async fn option_read_with(file: Option<&File>, buf: &mut [u8]) -> Option<io::Result<usize>> {
-    file.map(|mut file| file.read(buf))
+async fn option_read(file: Option<&mut File>, buf: &mut [u8]) -> Option<io::Result<usize>> {
+    match file {
+        Some(file) => match file.read(buf).await {
+            Ok(n) => Some(Ok(n)),
+            Err(e) => {
+                if e.kind() == io::ErrorKind::WouldBlock {
+                    None
+                } else {
+                    Some(Err(e))
+                }
+            }
+        },
+        None => None,
+    }
 }
 
 /// Creates a link-local IPv6 address from a 64-bit interface identifier.

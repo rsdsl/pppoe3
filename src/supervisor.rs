@@ -561,6 +561,8 @@ impl Client {
                         pkt.deserialize(&mut link_buf)?;
 
                         self.handle_ppp(pkt)?;
+                    } else { // Session closed.
+                        session_fds = None;
                     }
                 }
                 Some(result) = option_read(ppp_dev, &mut net_buf) => {
@@ -572,6 +574,8 @@ impl Client {
                         pkt.deserialize(&mut net_buf)?;
 
                         self.handle_ppp(pkt)?;
+                    } else { // Session closed.
+                        session_fds = None;
                     }
                 }
             }

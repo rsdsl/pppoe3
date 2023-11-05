@@ -23,17 +23,15 @@ macro_rules! os_err {
 }
 
 /// A port of the `pppoe_addr` C data structure.
-#[repr(C)]
-#[derive(Debug)]
+#[repr(C, packed)]
 struct pppoe_addr {
     pub sid: u16,
     pub remote: MacAddr,
-    pub dev: String,
+    pub dev: [u8; libc::IFNAMSIZ],
 }
 
 /// A port of the `sockaddr_pppox` C data structure.
-#[repr(C)]
-#[derive(Debug)]
+#[repr(C, packed)]
 struct sockaddr_pppox {
     pub sa_family: libc::sa_family_t,
     pub sa_protocol: u32,
@@ -1317,9 +1315,16 @@ impl Client {
     /// It is desirable to drop the structure before creating a new one
     /// to ensure the deletion if the old interface.
     fn new_session_fds(&self) -> Result<SessionFds> {
-        use libc::{sockaddr_storage, socklen_t, AF_PPPOX};
+        use libc::{sockaddr_storage, socklen_t, AF_PPPOX, IFNAMSIZ};
 
         const PX_PROTO_OE: i32 = 0;
+
+        let c_link = CString::new(&*self.link)?;
+
+        let mut dev = [0; IFNAMSIZ];
+        for (i, ch) in c_link.as_bytes_with_nul().iter().enumerate() {
+            dev[i] = *ch;
+        }
 
         let sp = sockaddr_pppox {
             sa_family: AF_PPPOX as u16,
@@ -1327,7 +1332,7 @@ impl Client {
             pppoe: pppoe_addr {
                 sid: self.session_id,
                 remote: self.remote,
-                dev: self.link.clone(),
+                dev,
             },
         };
 

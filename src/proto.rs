@@ -428,8 +428,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         self.is_closed() || self.is_stopped()
     }
 
+    /// Returns the options currently requested by us.
+    /// This is most useful while the protocol is in the `Opened` state.
+    pub fn our_options(&self) -> &[O] {
+        &self.request
+    }
+
     /// Returns the options set by the peer.
-    pub fn peer(&self) -> &[O] {
+    pub fn peer_options(&self) -> &[O] {
         &self.peer
     }
 
@@ -1161,7 +1167,7 @@ impl<O: ProtocolOption> ProtocolOptionNeedProtocol for &NegotiationProtocol<O> {
 
 impl LcpOptNeedProtocol for NegotiationProtocol<LcpOpt> {
     fn need_protocol(&self, protocol: u16) -> bool {
-        let our_auth = self.request.iter().find_map(|option| {
+        let our_auth = self.our_options().iter().find_map(|option| {
             if let LcpOpt::AuthenticationProtocol(auth_protocol) = option {
                 Some(auth_protocol)
             } else {
@@ -1169,7 +1175,7 @@ impl LcpOptNeedProtocol for NegotiationProtocol<LcpOpt> {
             }
         });
 
-        let peer_auth = self.peer().iter().find_map(|option| {
+        let peer_auth = self.peer_options().iter().find_map(|option| {
             if let LcpOpt::AuthenticationProtocol(auth_protocol) = option {
                 Some(auth_protocol)
             } else {

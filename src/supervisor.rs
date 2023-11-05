@@ -257,7 +257,28 @@ impl Client {
 
                     let is_opened = *lcp_rx.borrow_and_update();
                     if is_opened {
-                        todo!("open auth as needed or skip straight to NCPs and set authenticated = true and reset ncp check timer")
+                        let our_auth = self.lcp.peer_options().iter().find_map(|option| {
+                            if let LcpOpt::AuthenticationProtocol(auth_protocol) = option {
+                                Some(&auth_protocol.protocol)
+                            } else {
+                                None
+                            }
+                        });
+
+                        self.pap.up();
+                        self.chap.up();
+
+                        match our_auth {
+                            Some(AuthProto::Pap) => self.pap.open(),
+                            Some(AuthProto::Chap(ChapAlgorithm::Md5)) => self.chap.open(),
+                            None => {
+                                self.authenticated = true;
+                                ncp_check.reset();
+
+                                self.ipcp.up();
+                                self.ipv6cp.up();
+                            }
+                        }
                     } else {
                         self.authenticated = false;
 

@@ -35,7 +35,6 @@ pub enum ChapType {
 #[derive(Debug)]
 pub struct ChapPacket {
     pub ty: ChapType,
-    pub id: u8,
     pub data: Vec<u8>,
 }
 
@@ -187,7 +186,6 @@ impl ChapClient {
 
         ChapPacket {
             ty: ChapType::TerminateLower,
-            id: 0,
             data: Vec::default(),
         }
     }
@@ -202,7 +200,6 @@ impl ChapClient {
                 self.output_tx
                     .send(ChapPacket {
                         ty: ChapType::Response,
-                        id: packet.id,
                         data: packet.data,
                     })
                     .expect("output channel is closed");
@@ -213,7 +210,6 @@ impl ChapClient {
                 self.output_tx
                     .send(ChapPacket {
                         ty: ChapType::Response,
-                        id: packet.id,
                         data: packet.data,
                     })
                     .expect("output channel is closed");

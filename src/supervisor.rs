@@ -786,6 +786,9 @@ impl Client {
     /// Transforms an [`LcpPkt`] into an [`LcpPacket`] and feeds it
     /// into the LCP state machine.
     fn handle_lcp(&mut self, pkt: LcpPkt) {
+        self.last_id_remote = pkt.identifier;
+        self.lcp_id_remote = pkt.identifier;
+
         let packet = match pkt.data {
             LcpData::ConfigureRequest(cfg_req) => Some(Packet {
                 ty: PacketType::ConfigureRequest,
@@ -793,40 +796,64 @@ impl Client {
                 rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
-            LcpData::ConfigureAck(cfg_ack) => Some(Packet {
-                ty: PacketType::ConfigureAck,
-                options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            }),
-            LcpData::ConfigureNak(cfg_nak) => Some(Packet {
-                ty: PacketType::ConfigureNak,
-                options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            }),
-            LcpData::ConfigureReject(cfg_reject) => Some(Packet {
-                ty: PacketType::ConfigureReject,
-                options: cfg_reject
-                    .options
-                    .into_iter()
-                    .map(|opt| opt.value)
-                    .collect(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            }),
+            LcpData::ConfigureAck(cfg_ack) => {
+                if pkt.identifier == self.lcp_id_cfg {
+                    Some(Packet {
+                        ty: PacketType::ConfigureAck,
+                        options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    })
+                } else {
+                    None
+                }
+            }
+            LcpData::ConfigureNak(cfg_nak) => {
+                if pkt.identifier == self.lcp_id_cfg {
+                    Some(Packet {
+                        ty: PacketType::ConfigureNak,
+                        options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    })
+                } else {
+                    None
+                }
+            }
+            LcpData::ConfigureReject(cfg_reject) => {
+                if pkt.identifier == self.lcp_id_cfg {
+                    Some(Packet {
+                        ty: PacketType::ConfigureReject,
+                        options: cfg_reject
+                            .options
+                            .into_iter()
+                            .map(|opt| opt.value)
+                            .collect(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    })
+                } else {
+                    None
+                }
+            }
             LcpData::TerminateRequest(_) => Some(Packet {
                 ty: PacketType::TerminateRequest,
                 options: Vec::default(),
                 rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
-            LcpData::TerminateAck(_) => Some(Packet {
-                ty: PacketType::TerminateAck,
-                options: Vec::default(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            }),
+            LcpData::TerminateAck(_) => {
+                if pkt.identifier == self.lcp_id_term {
+                    Some(Packet {
+                        ty: PacketType::TerminateAck,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    })
+                } else {
+                    None
+                }
+            }
             LcpData::CodeReject(code_reject) => Some(Packet {
                 ty: PacketType::CodeReject,
                 options: Vec::default(),
@@ -868,12 +895,18 @@ impl Client {
                 rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             }),
-            LcpData::EchoReply(_) => Some(Packet {
-                ty: PacketType::EchoReply,
-                options: Vec::default(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            }),
+            LcpData::EchoReply(_) => {
+                if pkt.identifier == self.lcp_id_echo {
+                    Some(Packet {
+                        ty: PacketType::EchoReply,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    })
+                } else {
+                    None
+                }
+            }
             LcpData::DiscardRequest(_) => Some(Packet {
                 ty: PacketType::DiscardRequest,
                 options: Vec::default(),
@@ -890,16 +923,33 @@ impl Client {
     /// Transforms a [`PapPkt`] into a [`PapPacket`] and feeds it
     /// into the PAP state machine.
     fn handle_pap(&mut self, pkt: PapPkt) {
+        self.last_id_remote = pkt.identifier;
+
         self.pap.from_recv(match pkt.data {
             PapData::AuthenticateRequest(_) => PapPacket::AuthenticateRequest,
-            PapData::AuthenticateAck(_) => PapPacket::AuthenticateAck,
-            PapData::AuthenticateNak(_) => PapPacket::AuthenticateNak,
+            PapData::AuthenticateAck(_) => {
+                if pkt.identifier == self.pap_id {
+                    PapPacket::AuthenticateAck
+                } else {
+                    return;
+                }
+            }
+            PapData::AuthenticateNak(_) => {
+                if pkt.identifier == self.pap_id {
+                    PapPacket::AuthenticateNak
+                } else {
+                    return;
+                }
+            }
         });
     }
 
     /// Transforms a [`ChapPkt`] into a [`ChapPacket`] and feeds it
     /// into the CHAP state machine.
     fn handle_chap(&mut self, pkt: ChapPkt) {
+        self.last_id_remote = pkt.identifier;
+        self.chap_id_remote = pkt.identifier;
+
         self.chap.from_recv(match pkt.data {
             ChapData::Challenge(challenge) => ChapPacket {
                 ty: ChapType::Challenge,
@@ -923,6 +973,9 @@ impl Client {
     /// Transforms an [`IpcpPkt`] into an [`IpcpPacket`] and feeds it
     /// into the IPCP state machine.
     fn handle_ipcp(&mut self, pkt: IpcpPkt) {
+        self.last_id_remote = pkt.identifier;
+        self.ipcp_id_remote = pkt.identifier;
+
         self.ipcp.from_recv(match pkt.data {
             IpcpData::ConfigureRequest(cfg_req) => Packet {
                 ty: PacketType::ConfigureRequest,
@@ -930,40 +983,64 @@ impl Client {
                 rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
-            IpcpData::ConfigureAck(cfg_ack) => Packet {
-                ty: PacketType::ConfigureAck,
-                options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            },
-            IpcpData::ConfigureNak(cfg_nak) => Packet {
-                ty: PacketType::ConfigureNak,
-                options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            },
-            IpcpData::ConfigureReject(cfg_reject) => Packet {
-                ty: PacketType::ConfigureReject,
-                options: cfg_reject
-                    .options
-                    .into_iter()
-                    .map(|opt| opt.value)
-                    .collect(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            },
+            IpcpData::ConfigureAck(cfg_ack) => {
+                if pkt.identifier == self.ipcp_id_cfg {
+                    Packet {
+                        ty: PacketType::ConfigureAck,
+                        options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    }
+                } else {
+                    return;
+                }
+            }
+            IpcpData::ConfigureNak(cfg_nak) => {
+                if pkt.identifier == self.ipcp_id_cfg {
+                    Packet {
+                        ty: PacketType::ConfigureNak,
+                        options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    }
+                } else {
+                    return;
+                }
+            }
+            IpcpData::ConfigureReject(cfg_reject) => {
+                if pkt.identifier == self.ipcp_id_cfg {
+                    Packet {
+                        ty: PacketType::ConfigureReject,
+                        options: cfg_reject
+                            .options
+                            .into_iter()
+                            .map(|opt| opt.value)
+                            .collect(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    }
+                } else {
+                    return;
+                }
+            }
             IpcpData::TerminateRequest(_) => Packet {
                 ty: PacketType::TerminateRequest,
                 options: Vec::default(),
                 rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
-            IpcpData::TerminateAck(_) => Packet {
-                ty: PacketType::TerminateAck,
-                options: Vec::default(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            },
+            IpcpData::TerminateAck(_) => {
+                if pkt.identifier == self.ipcp_id_term {
+                    Packet {
+                        ty: PacketType::TerminateAck,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    }
+                } else {
+                    return;
+                }
+            }
             IpcpData::CodeReject(code_reject) => Packet {
                 ty: PacketType::CodeReject,
                 options: Vec::default(),
@@ -976,6 +1053,9 @@ impl Client {
     /// Transforms an [`Ipv6cpPkt`] into an [`Ipv6cpPacket`] and feeds it
     /// into the IPv6CP state machine.
     fn handle_ipv6cp(&mut self, pkt: Ipv6cpPkt) {
+        self.last_id_remote = pkt.identifier;
+        self.ipv6cp_id_remote = pkt.identifier;
+
         self.ipv6cp.from_recv(match pkt.data {
             Ipv6cpData::ConfigureRequest(cfg_req) => Packet {
                 ty: PacketType::ConfigureRequest,
@@ -983,40 +1063,64 @@ impl Client {
                 rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
-            Ipv6cpData::ConfigureAck(cfg_ack) => Packet {
-                ty: PacketType::ConfigureAck,
-                options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            },
-            Ipv6cpData::ConfigureNak(cfg_nak) => Packet {
-                ty: PacketType::ConfigureNak,
-                options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            },
-            Ipv6cpData::ConfigureReject(cfg_reject) => Packet {
-                ty: PacketType::ConfigureReject,
-                options: cfg_reject
-                    .options
-                    .into_iter()
-                    .map(|opt| opt.value)
-                    .collect(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            },
+            Ipv6cpData::ConfigureAck(cfg_ack) => {
+                if pkt.identifier == self.ipv6cp_id_cfg {
+                    Packet {
+                        ty: PacketType::ConfigureAck,
+                        options: cfg_ack.options.into_iter().map(|opt| opt.value).collect(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    }
+                } else {
+                    return;
+                }
+            }
+            Ipv6cpData::ConfigureNak(cfg_nak) => {
+                if pkt.identifier == self.ipv6cp_id_cfg {
+                    Packet {
+                        ty: PacketType::ConfigureNak,
+                        options: cfg_nak.options.into_iter().map(|opt| opt.value).collect(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    }
+                } else {
+                    return;
+                }
+            }
+            Ipv6cpData::ConfigureReject(cfg_reject) => {
+                if pkt.identifier == self.ipv6cp_id_cfg {
+                    Packet {
+                        ty: PacketType::ConfigureReject,
+                        options: cfg_reject
+                            .options
+                            .into_iter()
+                            .map(|opt| opt.value)
+                            .collect(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    }
+                } else {
+                    return;
+                }
+            }
             Ipv6cpData::TerminateRequest(_) => Packet {
                 ty: PacketType::TerminateRequest,
                 options: Vec::default(),
                 rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
-            Ipv6cpData::TerminateAck(_) => Packet {
-                ty: PacketType::TerminateAck,
-                options: Vec::default(),
-                rejected_code: PacketType::Unknown(0),
-                rejected_protocol: 0,
-            },
+            Ipv6cpData::TerminateAck(_) => {
+                if pkt.identifier == self.ipv6cp_id_term {
+                    Packet {
+                        ty: PacketType::TerminateAck,
+                        options: Vec::default(),
+                        rejected_code: PacketType::Unknown(0),
+                        rejected_protocol: 0,
+                    }
+                } else {
+                    return;
+                }
+            }
             Ipv6cpData::CodeReject(code_reject) => Packet {
                 ty: PacketType::CodeReject,
                 options: Vec::default(),

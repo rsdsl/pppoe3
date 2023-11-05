@@ -39,7 +39,26 @@ pub enum PacketType {
     EchoRequest,
     EchoReply,
     DiscardRequest,
-    Unknown,
+    Unknown(u8),
+}
+
+impl From<PacketType> for u8 {
+    fn from(ty: PacketType) -> Self {
+        match ty {
+            PacketType::ConfigureRequest => 1,
+            PacketType::ConfigureAck => 2,
+            PacketType::ConfigureNak => 3,
+            PacketType::ConfigureReject => 4,
+            PacketType::TerminateRequest => 5,
+            PacketType::TerminateAck => 6,
+            PacketType::CodeReject => 7,
+            PacketType::ProtocolReject => 8,
+            PacketType::EchoRequest => 9,
+            PacketType::EchoReply => 10,
+            PacketType::DiscardRequest => 11,
+            PacketType::Unknown(code) => code,
+        }
+    }
 }
 
 impl From<u8> for PacketType {
@@ -56,7 +75,7 @@ impl From<u8> for PacketType {
             9 => Self::EchoRequest,
             10 => Self::EchoReply,
             11 => Self::DiscardRequest,
-            _ => Self::Unknown,
+            _ => Self::Unknown(code),
         }
     }
 }

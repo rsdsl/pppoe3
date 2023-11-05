@@ -22,6 +22,10 @@ pub enum Error {
     NoMacAddress(String),
     #[error("no magic number negotiated locally")]
     NoMagicNumber,
+    #[error("ipv4 configuration update channel is closed")]
+    V4ChannelClosed,
+    #[error("ipv6 configuration update channel is closed")]
+    V6ChannelClosed,
 
     #[error("io: {0}")]
     Io(#[from] io::Error),
@@ -37,8 +41,12 @@ pub enum Error {
 
     #[error("error retrieving local mac address: {0}")]
     MacAddress(#[from] mac_address::MacAddressError),
+    #[error("netlinkd error: {0}")]
+    RsdslNetlinkd(#[from] rsdsl_netlinkd::Error),
     #[error("ppproperly packet (de)serialization failed: {0}")]
     Ppproperly(#[from] ppproperly::Error),
+    #[error("serde_json (de)serialization failed: {0}")]
+    SerdeJson(#[from] serde_json::Error),
 }
 
 /// An alias for a [`std::result::Result`] with the [`enum@Error`] type of this crate.

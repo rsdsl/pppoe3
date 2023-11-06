@@ -143,6 +143,10 @@ impl PppoeClient {
                 self.state = PppoeClientState::Closed
             }
             PppoeClientState::Active => {
+                self.upper_status_tx
+                    .send(false)
+                    .expect("upper status channel is closed");
+
                 self.output_tx
                     .send(PppoePacket {
                         ty: PppoeType::Padt,

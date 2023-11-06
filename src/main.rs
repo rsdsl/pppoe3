@@ -28,7 +28,10 @@ async fn main() -> Result<()> {
             .truncate(false)
             .open(rsdsl_ip_config::LOCATION)?;
 
-        serde_json::from_reader(&mut ds_config_file).unwrap_or(DsConfig::default())
+        serde_json::from_reader(&mut ds_config_file).unwrap_or_else(|_| {
+            println!("[info] no valid ds config to reuse");
+            DsConfig::default()
+        })
     };
 
     let (v4_tx, mut v4_rx) = mpsc::unbounded_channel();

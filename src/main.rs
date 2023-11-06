@@ -1,5 +1,4 @@
 use std::fs::{File, OpenOptions};
-use std::io::Seek;
 
 use tokio::sync::mpsc;
 
@@ -21,14 +20,16 @@ async fn main() -> Result<()> {
     let mut config_file = File::open("/data/pppoe.conf")?;
     let config: Config = serde_json::from_reader(&mut config_file)?;
 
-    let mut ds_config_file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(rsdsl_ip_config::LOCATION)?;
-    let mut ds_config: DsConfig =
-        serde_json::from_reader(&mut ds_config_file).unwrap_or(DsConfig::default());
+    let mut ds_config: DsConfig = {
+        let mut ds_config_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(rsdsl_ip_config::LOCATION)?;
+
+        serde_json::from_reader(&mut ds_config_file).unwrap_or(DsConfig::default())
+    };
 
     let (v4_tx, mut v4_rx) = mpsc::unbounded_channel();
     let (v6_tx, mut v6_rx) = mpsc::unbounded_channel();
@@ -50,9 +51,8 @@ async fn main() -> Result<()> {
             result = v4_rx.recv() => {
                 ds_config.v4 = result.ok_or(Error::V4ChannelClosed)?;
 
-                ds_config_file.rewind()?;
+                let mut ds_config_file = File::create(rsdsl_ip_config::LOCATION)?;
                 serde_json::to_writer_pretty(&mut ds_config_file, &ds_config)?;
-                ds_config_file.sync_all()?;
 
                 inform();
 
@@ -65,9 +65,8 @@ async fn main() -> Result<()> {
             result = v6_rx.recv() => {
                 ds_config.v6 = result.ok_or(Error::V6ChannelClosed)?;
 
-                ds_config_file.rewind()?;
+                let mut ds_config_file = File::create(rsdsl_ip_config::LOCATION)?;
                 serde_json::to_writer_pretty(&mut ds_config_file, &ds_config)?;
-                ds_config_file.sync_all()?;
 
                 inform();
 

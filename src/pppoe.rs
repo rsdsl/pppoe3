@@ -189,6 +189,9 @@ impl PppoeClient {
             | PppoeClientState::InitiationSent
             | PppoeClientState::Active => {} // illegal
             PppoeClientState::RequestSent => {
+                self.restart_timer.reset();
+                self.restart_counter = -1;
+
                 self.output_tx
                     .send(PppoePacket {
                         ty: PppoeType::Padi,
@@ -250,6 +253,7 @@ impl PppoeClient {
                     .expect("upper status channel is closed");
 
                 self.restart_timer.reset();
+                self.restart_counter = -1;
 
                 self.output_tx
                     .send(PppoePacket {

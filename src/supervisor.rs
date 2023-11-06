@@ -298,6 +298,30 @@ impl Client {
             let (ctl, ppp_dev) = session_fds.as_mut().map(|fds| fds.both_mut()).unzip();
 
             tokio::select! {
+                biased;
+
+                packet = self.pppoe.to_send() => self.send_pppoe(&sock_disc, packet).await?,
+                packet = self.lcp.to_send() => self.send_lcp(
+                    session_fds.as_mut().map(|fds| fds.link_mut()),
+                    packet
+                ).await?,
+                packet = self.pap.to_send() => self.send_pap(
+                    session_fds.as_mut().map(|fds| fds.link_mut()),
+                    packet
+                ).await?,
+                packet = self.chap.to_send() => self.send_chap(
+                    session_fds.as_mut().map(|fds| fds.link_mut()),
+                    packet
+                ).await?,
+                packet = self.ipcp.to_send() => self.send_ipcp(
+                    session_fds.as_mut().map(|fds| fds.network_mut()),
+                    packet
+                ).await?,
+                packet = self.ipv6cp.to_send() => self.send_ipv6cp(
+                    session_fds.as_mut().map(|fds| fds.network_mut()),
+                    packet
+                ).await?,
+
                 result = pppoe_rx.changed() => {
                     result?;
 
@@ -489,28 +513,6 @@ impl Client {
                     result?;
                     ncp_check.reset();
                 }
-
-                packet = self.pppoe.to_send() => self.send_pppoe(&sock_disc, packet).await?,
-                packet = self.lcp.to_send() => self.send_lcp(
-                    session_fds.as_mut().map(|fds| fds.link_mut()),
-                    packet
-                ).await?,
-                packet = self.pap.to_send() => self.send_pap(
-                    session_fds.as_mut().map(|fds| fds.link_mut()),
-                    packet
-                ).await?,
-                packet = self.chap.to_send() => self.send_chap(
-                    session_fds.as_mut().map(|fds| fds.link_mut()),
-                    packet
-                ).await?,
-                packet = self.ipcp.to_send() => self.send_ipcp(
-                    session_fds.as_mut().map(|fds| fds.network_mut()),
-                    packet
-                ).await?,
-                packet = self.ipv6cp.to_send() => self.send_ipv6cp(
-                    session_fds.as_mut().map(|fds| fds.network_mut()),
-                    packet
-                ).await?,
 
                 _ = echo_timeout.tick() => {
                     if *lcp_rx.borrow() {

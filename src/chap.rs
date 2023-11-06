@@ -85,9 +85,11 @@ impl ChapClient {
     /// Waits for and returns the next packet to send.
     pub async fn to_send(&mut self) -> ChapPacket {
         tokio::select! {
-        packet = self.output_rx.recv() => packet.expect("output channel is closed"),
-        _ = self.timeout.tick() => self.fail(),
-            }
+            packet = self.output_rx.recv() => packet.expect("output channel is closed"),
+            _ = self.timeout.tick(), if self.state == ChapClientState::Waiting
+                || self.state == ChapClientState::ResponseSent
+                || self.state == ChapClientState::ReauthSent => self.fail(),
+        }
     }
 
     /// Feeds a packet into the state machine for processing.

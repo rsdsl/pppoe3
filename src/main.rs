@@ -1,4 +1,5 @@
 use std::fs::{File, OpenOptions};
+use std::io::Seek;
 
 use tokio::sync::mpsc;
 
@@ -48,7 +49,11 @@ async fn main() -> Result<()> {
         tokio::select! {
             result = v4_rx.recv() => {
                 ds_config.v4 = result.ok_or(Error::V4ChannelClosed)?;
+
+                ds_config_file.rewind()?;
                 serde_json::to_writer_pretty(&mut ds_config_file, &ds_config)?;
+                ds_config_file.sync_all()?;
+
                 inform();
 
                 if let Some(v4) = ds_config.v4 {
@@ -59,7 +64,11 @@ async fn main() -> Result<()> {
             }
             result = v6_rx.recv() => {
                 ds_config.v6 = result.ok_or(Error::V6ChannelClosed)?;
+
+                ds_config_file.rewind()?;
                 serde_json::to_writer_pretty(&mut ds_config_file, &ds_config)?;
+                ds_config_file.sync_all()?;
+
                 inform();
 
                 if let Some(v6) = ds_config.v6 {

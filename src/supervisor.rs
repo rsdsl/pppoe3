@@ -287,8 +287,7 @@ impl Client {
         let mut ipcp_lower_rx = self.ipcp.active();
         let mut ipv6cp_lower_rx = self.ipv6cp.active();
 
-        // PPPoE is automatically opened when LCP asks for it,
-        // see self.pppoe.open() call below.
+        self.pppoe.open();
         self.lcp.open();
         // Authentication protocols are opened as needed, see select! below.
         self.ipcp.open();

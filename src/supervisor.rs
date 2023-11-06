@@ -476,10 +476,6 @@ impl Client {
                         self.lcp.down();
 
                         self.pppoe.close();
-
-                        self.session_id = 0;
-                        self.remote = MacAddr::BROADCAST;
-
                         self.pppoe.open();
 
                         self.lcp.open();

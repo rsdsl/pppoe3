@@ -89,7 +89,7 @@ async fn main() -> Result<()> {
 
 /// Informs netlinkd of IPv4/IPv6 configuration changes.
 fn inform() {
-    for netlinkd in System::default().processes_by_exact_name("/bin/rsdsl_netlinkd") {
+    for netlinkd in System::new_all().processes_by_exact_name("rsdsl_netlinkd") {
         netlinkd.kill_with(Signal::User1);
     }
 }

@@ -1,6 +1,7 @@
 use std::fs::{File, OpenOptions};
 
 use tokio::sync::mpsc;
+use tokio::time::{self, Duration};
 
 use rsdsl_ip_config::DsConfig;
 use rsdsl_pppoe3::{Client, Error, Result};
@@ -16,6 +17,10 @@ struct Config {
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("[info] init");
+
+    time::sleep(Duration::from_secs(10)).await;
+
+    println!("[info] startup");
 
     let mut config_file = File::open("/data/pppoe.conf")?;
     let config: Config = serde_json::from_reader(&mut config_file)?;

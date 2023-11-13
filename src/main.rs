@@ -97,8 +97,4 @@ fn inform() {
     for netlinkd in System::new_all().processes_by_exact_name("rsdsl_netlinkd") {
         netlinkd.kill_with(Signal::User1);
     }
-
-    for dhcp6 in System::new_all().processes_by_exact_name("rsdsl_dhcp6") {
-        dhcp6.kill_with(Signal::User1);
-    }
 }

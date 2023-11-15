@@ -9,6 +9,7 @@ use std::time::Duration;
 use std::{io, mem};
 
 use tokio::io::unix::AsyncFd;
+use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
 use tokio::time::Interval;
 
@@ -255,7 +256,7 @@ impl Client {
     }
 
     /// Tries to keep a session open at all costs.
-    /// Blocks the caller forever unless a panic occurs.
+    /// Blocks the caller forever unless a panic occurs or SIGTERM is received.
     ///
     /// # Arguments
     ///
@@ -272,6 +273,8 @@ impl Client {
         let mut pppoe_buf = [0; 1522];
         let mut link_buf = [0; 1494];
         let mut net_buf = [0; 1494];
+
+        let mut sigterm = signal(SignalKind::terminate())?;
 
         let mut echo_timeout = tokio::time::interval(Duration::from_secs(12));
         let mut ncp_check = tokio::time::interval(Duration::from_secs(20));
@@ -298,6 +301,13 @@ impl Client {
 
             tokio::select! {
                 biased;
+
+                _ = sigterm.recv() => {
+                    self.lcp.close();
+
+                    println!("[info] <> disconnect: sigterm");
+                    return Ok(());
+                }
 
                 packet = self.pppoe.to_send() => self.send_pppoe(&sock_disc, packet).await?,
                 packet = self.lcp.to_send() => self.send_lcp(

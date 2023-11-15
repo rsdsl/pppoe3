@@ -85,8 +85,10 @@ async fn main() -> Result<()> {
                 }
             }
             result = &mut join_handle => {
-                result??; // This always fails, the task never exits with an Ok(_).
-                unreachable!("Client::run exited successfully")
+                result??;
+
+                println!("[info] <> exiting");
+                return Ok(());
             }
         }
     }

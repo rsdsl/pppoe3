@@ -75,7 +75,7 @@ pub struct Client {
     local: MacAddr,
     remote: MacAddr,
 
-    preserve_lease: bool,
+    shutdown: bool,
     authenticated: bool,
 
     last_id_remote: u8,
@@ -141,7 +141,7 @@ impl Client {
                 .into(),
             remote: MacAddr::BROADCAST,
 
-            preserve_lease: false,
+            shutdown: false,
             authenticated: false,
 
             last_id_remote: 0,
@@ -305,11 +305,10 @@ impl Client {
                 biased;
 
                 _ = sigterm.recv() => {
-                    self.preserve_lease = true;
+                    self.shutdown = true;
                     self.lcp.close();
 
                     println!("[info] <> disconnect: sigterm");
-                    return Ok(());
                 }
 
                 packet = self.pppoe.to_send() => self.send_pppoe(&sock_disc, packet).await?,
@@ -352,6 +351,10 @@ impl Client {
                         self.lcp.down();
 
                         println!("[info] <> terminate pppoe session");
+
+                        if self.shutdown {
+                            return Ok(());
+                        }
                     }
                 }
                 result = lcp_rx.changed() => {
@@ -473,7 +476,7 @@ impl Client {
 
                         println!("[info] <> open ipcp");
                     } else {
-                        if !self.preserve_lease {
+                        if !self.shutdown {
                             v4_tx.send(None)?;
                         }
 
@@ -502,7 +505,7 @@ impl Client {
 
                         println!("[info] <> open ipv6cp");
                     } else {
-                        if !self.preserve_lease {
+                        if !self.shutdown {
                             v6_tx.send(None)?;
                         }
 

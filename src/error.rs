@@ -28,7 +28,7 @@ pub enum Error {
     #[error("ipv6 configuration update channel is closed")]
     V6ChannelClosed,
 
-    #[error("io: {0}")]
+    #[error("io error: {0}")]
     Io(#[from] io::Error),
     #[error("interface name contains nul byte: {0}")]
     Nul(#[from] ffi::NulError),

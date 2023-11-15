@@ -75,6 +75,7 @@ pub struct Client {
     local: MacAddr,
     remote: MacAddr,
 
+    preserve_lease: bool,
     authenticated: bool,
 
     last_id_remote: u8,
@@ -140,6 +141,7 @@ impl Client {
                 .into(),
             remote: MacAddr::BROADCAST,
 
+            preserve_lease: false,
             authenticated: false,
 
             last_id_remote: 0,
@@ -303,6 +305,7 @@ impl Client {
                 biased;
 
                 _ = sigterm.recv() => {
+                    self.preserve_lease = true;
                     self.lcp.close();
 
                     println!("[info] <> disconnect: sigterm");
@@ -470,7 +473,10 @@ impl Client {
 
                         println!("[info] <> open ipcp");
                     } else {
-                        v4_tx.send(None)?;
+                        if !self.preserve_lease {
+                            v4_tx.send(None)?;
+                        }
+
                         println!("[info] <> terminate ipcp");
                     }
                 }
@@ -496,7 +502,10 @@ impl Client {
 
                         println!("[info] <> open ipv6cp");
                     } else {
-                        v6_tx.send(None)?;
+                        if !self.preserve_lease {
+                            v6_tx.send(None)?;
+                        }
+
                         println!("[info] <> terminate ipv6cp");
                     }
                 }

@@ -44,6 +44,8 @@ pub enum Error {
 
     #[error("error retrieving local mac address: {0}")]
     MacAddress(#[from] mac_address::MacAddressError),
+    #[error("netlinklib error: {0}")]
+    Netlinklib(#[from] rsdsl_netlinklib::Error),
     #[error("ppproperly packet (de)serialization failed: {0}")]
     Ppproperly(#[from] ppproperly::Error),
     #[error("serde_json (de)serialization failed: {0}")]

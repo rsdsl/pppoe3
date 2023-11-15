@@ -519,11 +519,12 @@ impl Client {
                     let is_active = *lcp_lower_rx.borrow_and_update();
                     if !is_active { // LCP has gone down, a new PPPoE session is needed.
                         self.lcp.down();
-
                         self.pppoe.close();
-                        self.pppoe.open();
 
-                        self.lcp.open();
+                        if !self.shutdown {
+                            self.pppoe.open();
+                            self.lcp.open();
+                        }
                     }
                 }
                 result = ipcp_lower_rx.changed() => {

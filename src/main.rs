@@ -8,6 +8,8 @@ use rsdsl_pppoe3::{Client, Error, Result};
 use serde::{Deserialize, Serialize};
 use sysinfo::{ProcessExt, Signal, System, SystemExt};
 
+const INTERFACE: &str = "eth1";
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct Config {
     username: String,
@@ -17,7 +19,7 @@ struct Config {
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("[info] wait for eth1");
-    link::wait_up("eth1".into()).await?;
+    link::wait_up(INTERFACE.into()).await?;
     println!("[info] startup");
 
     let mut config_file = File::open("/data/pppoe.conf")?;
@@ -41,7 +43,7 @@ async fn main() -> Result<()> {
     let (v6_tx, mut v6_rx) = mpsc::unbounded_channel();
 
     let client = Client::new(
-        "eth1".into(),
+        INTERFACE.into(),
         config.username,
         config.password,
         ds_config.v4.map(|v4| v4.addr),

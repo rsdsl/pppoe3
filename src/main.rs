@@ -18,7 +18,7 @@ struct Config {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let conn = Connection::new()?;
+    let conn = Connection::new().await?;
 
     println!("[info] wait for eth1");
     conn.link_wait_up(INTERFACE.into()).await?;

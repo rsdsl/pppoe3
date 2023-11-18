@@ -1,6 +1,8 @@
 mod error;
 pub use error::*;
 
+mod ioctls;
+
 pub mod proto;
 pub use proto::*;
 

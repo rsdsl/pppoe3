@@ -11,7 +11,6 @@ use std::{io, mem};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
-use tokio::time::Interval;
 
 use async_io::Async;
 use ppproperly::*;
@@ -97,8 +96,6 @@ pub struct Client {
     ipv6cp_id_term: u8,
     ipv6cp_id_remote: u8,
 
-    timeout: Interval,
-
     pppoe: PppoeClient,
     lcp: NegotiationProtocol<LcpOpt>,
     pap: PapClient,
@@ -162,8 +159,6 @@ impl Client {
             ipv6cp_id_cfg: 0,
             ipv6cp_id_term: 0,
             ipv6cp_id_remote: 0,
-
-            timeout: tokio::time::interval(Duration::from_secs(30)),
 
             pppoe: PppoeClient::new(None, None),
             lcp: NegotiationProtocol::new(ProtocolConfig {
@@ -280,6 +275,8 @@ impl Client {
 
         let mut echo_timeout = tokio::time::interval(Duration::from_secs(12));
         let mut ncp_check = tokio::time::interval(Duration::from_secs(20));
+
+        let mut echo_reqs = 0;
 
         let mut pppoe_rx = self.pppoe.active();
         let mut lcp_rx = self.lcp.opened();
@@ -538,24 +535,39 @@ impl Client {
 
                 _ = echo_timeout.tick() => {
                     if *lcp_rx.borrow() {
-                        // Send an LCP Echo-Request every 12 seconds.
-                        self.send_lcp(
-                            session_fds.as_mut().map(|fds| fds.link()),
-                            Packet {
-                                ty: PacketType::EchoRequest,
-                                options: Vec::default(),
-                                rejected_code: PacketType::Unknown(0),
-                                rejected_protocol: 0,
-                            }
-                        ).await?;
-                    }
-                }
-                _ = self.timeout.tick() => {
-                    if *lcp_rx.borrow() {
-                        // No LCP traffic has been received for 30 seconds, terminate the link.
-                        self.lcp.close();
+                        if let Some(ctl) = ctl {
+                            // Send an LCP Echo-Request every 12 seconds
+                            // if no data traffic has been received for 30 seconds.
 
-                        println!("[info] -> timeout");
+                            let mut idle = ioctls::ppp_idle64 {
+                                xmit_idle: 0,
+                                recv_idle: 0,
+                            };
+
+                            if unsafe { ioctls::pppiocgidle64(ctl.as_raw_fd(), &mut idle) } < 0 {
+                                os_err!();
+                            }
+
+                            if idle.recv_idle >= 30 {
+                                if echo_reqs >= 5 {
+                                    self.lcp.close();
+                                    println!("[info] -> timeout");
+                                } else {
+                                    self.send_lcp(
+                                        session_fds.as_mut().map(|fds| fds.link()),
+                                        Packet {
+                                            ty: PacketType::EchoRequest,
+                                            options: Vec::default(),
+                                            rejected_code: PacketType::Unknown(0),
+                                            rejected_protocol: 0,
+                                        }
+                                    ).await?;
+                                    echo_reqs += 1;
+                                }
+                            } else {
+                                echo_reqs = 0;
+                            }
+                        }
                     }
                 }
                 _ = ncp_check.tick() => {
@@ -1101,7 +1113,6 @@ impl Client {
         };
 
         if let Some(packet) = packet {
-            self.timeout.reset();
             self.lcp.from_recv(packet);
         }
 

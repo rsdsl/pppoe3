@@ -271,6 +271,7 @@ impl Client {
         let mut link_buf = [0; 1494];
         let mut net_buf = [0; 1494];
 
+        let mut sighup = signal(SignalKind::hangup())?;
         let mut sigterm = signal(SignalKind::terminate())?;
 
         let mut echo_timeout = tokio::time::interval(Duration::from_secs(12));
@@ -301,6 +302,10 @@ impl Client {
             tokio::select! {
                 biased;
 
+                _ = sighup.recv() => {
+                    self.lcp.close();
+                    println!("[info] <> reconnect: sighup");
+                }
                 _ = sigterm.recv() => {
                     self.shutdown = true;
                     self.lcp.close();

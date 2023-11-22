@@ -596,6 +596,8 @@ impl Client {
                 Some(result) = option_read(ctl, &mut link_buf) => {
                     let n = result?;
                     if n != 0 { // Real message, session not closed.
+                        echo_reqs = 0;
+
                         let mut link_buf = &link_buf[..n];
 
                         let mut pkt = PppPkt::default();

@@ -540,7 +540,7 @@ impl Client {
 
                 _ = echo_timeout.tick() => {
                     if *lcp_rx.borrow() {
-                        if let Some(ctl) = ctl {
+                        if let Some(ppp_dev) = ppp_dev {
                             // Send an LCP Echo-Request every 12 seconds
                             // if no data traffic has been received for 30 seconds.
 
@@ -549,7 +549,7 @@ impl Client {
                                 recv_idle: 0,
                             };
 
-                            if unsafe { ioctls::pppiocgidle64(ctl.as_raw_fd(), &mut idle) } < 0 {
+                            if unsafe { ioctls::pppiocgidle64(ppp_dev.as_raw_fd(), &mut idle) } < 0 {
                                 os_err!();
                             }
 

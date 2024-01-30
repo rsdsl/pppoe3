@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         ds_config.v4.map(|v4| v4.addr),
         ds_config
             .v6
-            .map(|v6| (u128::from(v6.laddr) & 0xffffffffffffffff) as u64),
+            .map(|v6| (u128::from(v6.laddr) & u128::from(u64::MAX)) as u64),
     )?;
 
     let mut join_handle = tokio::spawn(client.run(v4_tx.clone(), v6_tx.clone()));

@@ -1121,13 +1121,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         let mut nak_require: Vec<O> = self
             .require
             .iter()
-            .cloned()
             .filter(|required| {
                 !packet
                     .options
                     .iter()
                     .any(|option| option.has_same_type(required))
             })
+            .cloned()
             .collect();
 
         if self.failure < self.max_failure {
@@ -1138,13 +1138,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         let reject_deny = self
             .deny
             .iter()
-            .cloned()
             .filter(|denied| {
                 packet
                     .options
                     .iter()
                     .any(|option| option.has_same_type(denied))
             })
+            .cloned()
             .collect();
 
         let reject = reject_deny;

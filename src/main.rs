@@ -33,13 +33,14 @@ async fn main() -> Result<()> {
             .write(true)
             .create(true)
             .truncate(false)
-            .open(rsdsl_ip_config::LOCATION)?;
+            .open(rsdsl_ip_config::LOCATION_LAST)?;
 
         serde_json::from_reader(&mut ds_config_file).unwrap_or_else(|_| {
             println!("[info] no valid ds config to reuse");
             DsConfig::default()
         })
     };
+    let mut ds_config_last = ds_config;
 
     let (v4_tx, mut v4_rx) = mpsc::unbounded_channel();
     let (v6_tx, mut v6_rx) = mpsc::unbounded_channel();
@@ -64,6 +65,13 @@ async fn main() -> Result<()> {
                 let mut ds_config_file = File::create(rsdsl_ip_config::LOCATION)?;
                 serde_json::to_writer_pretty(&mut ds_config_file, &ds_config)?;
 
+                if ds_config.v4.is_some() {
+                    ds_config_last.v4 = ds_config.v4;
+
+                    let mut ds_config_last_file = File::create(rsdsl_ip_config::LOCATION_LAST)?;
+                    serde_json::to_writer_pretty(&mut ds_config_last_file, &ds_config_last)?;
+                }
+
                 inform();
 
                 if let Some(v4) = ds_config.v4 {
@@ -77,6 +85,13 @@ async fn main() -> Result<()> {
 
                 let mut ds_config_file = File::create(rsdsl_ip_config::LOCATION)?;
                 serde_json::to_writer_pretty(&mut ds_config_file, &ds_config)?;
+
+                if ds_config.v6.is_some() {
+                    ds_config_last.v6 = ds_config.v6;
+
+                    let mut ds_config_last_file = File::create(rsdsl_ip_config::LOCATION_LAST)?;
+                    serde_json::to_writer_pretty(&mut ds_config_last_file, &ds_config_last)?;
+                }
 
                 inform();
 

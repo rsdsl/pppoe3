@@ -341,7 +341,9 @@ impl Client {
                     let is_active = *pppoe_rx.borrow_and_update();
                     if is_active {
                         session_fds = Some(self.new_session_fds().await?);
+
                         self.lcp.up();
+                        self.lcp.open();
 
                         println!("[info] <- ({}) confirm pppoe session", self.session_id);
                     } else {

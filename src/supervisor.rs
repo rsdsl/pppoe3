@@ -42,7 +42,7 @@ struct sockaddr_pppox {
 /// A set of file descriptors describing a PPP session
 /// and its virtual network interface.
 #[derive(Debug)]
-struct SessionFds(Socket, AsyncFd<File>, AsyncFd<File>);
+struct SessionFds(#[allow(unused)] Socket, AsyncFd<File>, AsyncFd<File>);
 
 impl SessionFds {
     /// Returns an immutable reference to the file descriptor

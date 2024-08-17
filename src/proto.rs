@@ -107,6 +107,7 @@ trait ProtocolOptionNeedProtocol {
     fn need_protocol(&self, protocol: u16) -> bool;
 }
 
+#[allow(dead_code)]
 trait LcpOptNeedProtocol {
     fn need_protocol(&self, protocol: u16) -> bool;
 }

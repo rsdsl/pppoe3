@@ -8,7 +8,7 @@ use rsdsl_pppoe3::{Client, Error, Result};
 use serde::{Deserialize, Serialize};
 use sysinfo::{ProcessExt, Signal, System, SystemExt};
 
-const INTERFACE: &str = "eth1";
+const INTERFACE: &str = "carrier0";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct Config {

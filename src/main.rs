@@ -20,7 +20,7 @@ struct Config {
 async fn main() -> Result<()> {
     let conn = Connection::new().await?;
 
-    println!("[info] wait for eth1");
+    println!("[info] wait for {}", INTERFACE);
     conn.link_wait_up(INTERFACE.into()).await?;
     println!("[info] startup");
 

@@ -603,9 +603,11 @@ impl Client {
                         let mut link_buf = &link_buf[..n];
 
                         let mut pkt = PppPkt::default();
-                        pkt.deserialize(&mut link_buf)?;
-
-                        self.handle_ppp(pkt)?;
+                        match pkt.deserialize(&mut link_buf){
+                            Ok(_) => self.handle_ppp(pkt)?,
+                            Err(ppproperly::Error::InvalidPppProtocol(id)) => self.lcp.reject(id),
+                            Err(e) => return Err(e.into()),
+                        }
                     } else { // Session closed.
                         session_fds = None;
                     }
@@ -616,9 +618,11 @@ impl Client {
                         let mut net_buf = &net_buf[..n];
 
                         let mut pkt = PppPkt::default();
-                        pkt.deserialize(&mut net_buf)?;
-
-                        self.handle_ppp(pkt)?;
+                        match pkt.deserialize(&mut net_buf) {
+                            Ok(_) => self.handle_ppp(pkt)?,
+                            Err(ppproperly::Error::InvalidPppProtocol(id)) => self.lcp.reject(id),
+                            Err(e) => return Err(e.into()),
+                        }
                     } else { // Session closed.
                         session_fds = None;
                     }

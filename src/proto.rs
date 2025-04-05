@@ -491,6 +491,22 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         self.lower_status_rx.clone()
     }
 
+    /// Sends a Protocol-Reject for the specified protocol ID to the peer.
+    pub fn reject(&self, id: u16) {
+        if self.state != ProtocolState::Opened {
+            return;
+        }
+
+        self.output_tx
+            .send(Packet {
+                ty: PacketType::ProtocolReject,
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown(0),
+                rejected_protocol: id,
+            })
+            .expect("output channel is closed");
+    }
+
     fn timeout_positive(&mut self) -> Option<Packet<O>> {
         match self.state {
             ProtocolState::Initial

@@ -1101,7 +1101,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             .iter()
             .all(|(denied, _)| !options.iter().any(|option| *option == *denied));
 
-        let no_unknowns = options.iter().any(|option| option.is_unknown());
+        let no_unknowns = !options.iter().any(|option| option.is_unknown());
 
         require_satisfied && deny_satisfied && deny_exact_satisfied && no_unknowns
     }

@@ -95,6 +95,10 @@ pub trait ProtocolOption: Clone + Eq {
     /// The ID of the protocol in question.
     const PROTOCOL: u16;
 
+    /// Reports whether the contents of the `ProtocolOption`
+    /// are supported by the implementation.
+    fn is_unknown(&self) -> bool;
+
     /// Reports whether two `ProtocolOption` implementors of the same type
     /// share the same variant.
     /// The default implementation compares enum discriminants.
@@ -1097,7 +1101,9 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             .iter()
             .all(|(denied, _)| !options.iter().any(|option| *option == *denied));
 
-        require_satisfied && deny_satisfied && deny_exact_satisfied
+        let no_unknowns = options.iter().any(|option| option.is_unknown());
+
+        require_satisfied && deny_satisfied && deny_exact_satisfied && no_unknowns
     }
 
     fn need_code(&self, code: &PacketType) -> bool {
@@ -1152,7 +1158,7 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
         };
         let nak = nak_deny_exact;
 
-        let reject_deny = self
+        let mut reject_deny: Vec<O> = self
             .deny
             .iter()
             .filter(|denied| {
@@ -1163,6 +1169,14 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
             })
             .cloned()
             .collect();
+
+        reject_deny.extend(
+            packet
+                .options
+                .iter()
+                .filter(|option| option.is_unknown())
+                .cloned(),
+        );
 
         let reject = reject_deny;
 
@@ -1195,7 +1209,15 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 .iter()
                 .any(|refused| refused.has_same_type(option))
                 && !self.refuse_exact.iter().any(|refused| *refused == *option)
+                && !option.is_unknown()
         });
+
+        let rq = self.request.clone();
+        let missing_options = accepted_naks
+            .clone()
+            .filter(|option| !rq.iter().any(|o| o.has_same_type(option)))
+            .cloned();
+        self.request.extend(missing_options);
 
         match packet.ty {
             PacketType::ConfigureNak => {

@@ -168,7 +168,15 @@ impl Client {
                     LcpOpt::ProtocolFieldCompression,
                     LcpOpt::AddrCtlFieldCompression,
                 ],
-                deny_exact: vec![(LcpOpt::MagicNumber(0), LcpOpt::MagicNumber(peer_magic))],
+                deny_exact: vec![
+                    (LcpOpt::MagicNumber(0), LcpOpt::MagicNumber(peer_magic)),
+                    (
+                        LcpOpt::AuthenticationProtocol(
+                            AuthProto::Unhandled(0, Vec::default()).into(),
+                        ),
+                        LcpOpt::AuthenticationProtocol(AuthProto::Chap(ChapAlgorithm::Md5).into()),
+                    ),
+                ],
 
                 request: vec![LcpOpt::Mru(1492), LcpOpt::MagicNumber(magic)],
                 refuse: vec![LcpOpt::Mru(1492)],
@@ -368,7 +376,7 @@ impl Client {
                     if is_opened {
                         let our_auth = self.lcp.peer_options().iter().find_map(|option| {
                             if let LcpOpt::AuthenticationProtocol(auth_protocol) = option {
-                                Some(&auth_protocol.protocol)
+                                Some(auth_protocol.protocol.clone())
                             } else {
                                 None
                             }
@@ -385,6 +393,17 @@ impl Client {
                             Some(AuthProto::Chap(ChapAlgorithm::Md5)) => {
                                 self.chap.open();
                                 println!("[info] -> authenticate chap-md5");
+                            }
+                            Some(AuthProto::Chap(ChapAlgorithm::Unhandled(algo))) => {
+                                println!("[info] <- (BUG) unsupported chap algorithm {}", algo);
+                            }
+                            Some(AuthProto::Unhandled(ty, payload)) => {
+                                self.lcp.close();
+                                println!(
+                                    "[warn] <- (BUG) unsupported auth proto {} {:?}",
+                                    ty,
+                                    payload,
+                                );
                             }
                             None => {
                                 self.authenticated = true;
@@ -492,14 +511,20 @@ impl Client {
 
                     let is_opened = *ipv6cp_rx.borrow_and_update();
                     if is_opened {
-                        let lifid = self.ipv6cp.our_options().iter().map(|option| {
-                            let Ipv6cpOpt::InterfaceId(ifid) = option;
-                            ifid
+                        let lifid = self.ipv6cp.our_options().iter().filter_map(|option| {
+                            if let Ipv6cpOpt::InterfaceId(ifid) = option {
+                                Some(ifid)
+                            } else {
+                                None
+                            }
                         }).next().ok_or(Error::NoIpv6Local)?;
 
-                        let rifid = self.ipv6cp.peer_options().iter().map(|option| {
-                            let Ipv6cpOpt::InterfaceId(ifid) = option;
-                            ifid
+                        let rifid = self.ipv6cp.peer_options().iter().filter_map(|option| {
+                            if let Ipv6cpOpt::InterfaceId(ifid) = option {
+                                Some(ifid)
+                            } else {
+                                None
+                            }
                         }).next().ok_or(Error::NoIpv6Remote)?;
 
                         v6_tx.send(Some(Ipv6Config{
@@ -605,7 +630,6 @@ impl Client {
                         let mut pkt = PppPkt::default();
                         match pkt.deserialize(&mut link_buf){
                             Ok(_) => self.handle_ppp(pkt)?,
-                            Err(ppproperly::Error::InvalidPppProtocol(id)) => self.lcp.reject(id),
                             Err(e) => return Err(e.into()),
                         }
                     } else { // Session closed.
@@ -620,7 +644,6 @@ impl Client {
                         let mut pkt = PppPkt::default();
                         match pkt.deserialize(&mut net_buf) {
                             Ok(_) => self.handle_ppp(pkt)?,
-                            Err(ppproperly::Error::InvalidPppProtocol(id)) => self.lcp.reject(id),
                             Err(e) => return Err(e.into()),
                         }
                     } else { // Session closed.
@@ -969,6 +992,10 @@ impl Client {
             PppData::Chap(chap) => self.handle_chap(chap),
             PppData::Ipcp(ipcp) => self.handle_ipcp(ipcp),
             PppData::Ipv6cp(ipv6cp) => self.handle_ipv6cp(ipv6cp),
+            PppData::Unhandled(ty, payload) => {
+                self.lcp.reject(ty);
+                println!("[warn] -> reject protocol {} {:?}", ty, payload);
+            }
         }
 
         Ok(())
@@ -1123,6 +1150,12 @@ impl Client {
                     None
                 }
             }
+            LcpData::Unhandled(ty, _) => Some(Packet {
+                ty: PacketType::Unknown(ty),
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown(0),
+                rejected_protocol: 0,
+            }),
         };
 
         if let Some(packet) = packet {
@@ -1153,6 +1186,10 @@ impl Client {
                     return;
                 }
             }
+            PapData::Unhandled(ty, payload) => {
+                println!("[warn] <- unknown pap type {} {:?}", ty, payload);
+                return;
+            }
         });
     }
 
@@ -1179,6 +1216,10 @@ impl Client {
                 ty: ChapType::Failure,
                 data: Vec::default(),
             },
+            ChapData::Unhandled(ty, payload) => {
+                println!("[warn] <- unknown chap type {} {:?}", ty, payload);
+                return;
+            }
         });
     }
 
@@ -1259,6 +1300,12 @@ impl Client {
                 rejected_code: code_reject.pkt[1].into(),
                 rejected_protocol: 0,
             },
+            IpcpData::Unhandled(ty, _) => Packet {
+                ty: PacketType::Unknown(ty),
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown(0),
+                rejected_protocol: 0,
+            },
         });
     }
 
@@ -1337,6 +1384,12 @@ impl Client {
                 ty: PacketType::CodeReject,
                 options: Vec::default(),
                 rejected_code: code_reject.pkt[1].into(),
+                rejected_protocol: 0,
+            },
+            Ipv6cpData::Unhandled(ty, _) => Packet {
+                ty: PacketType::Unknown(ty),
+                options: Vec::default(),
+                rejected_code: PacketType::Unknown(0),
                 rejected_protocol: 0,
             },
         });

@@ -583,7 +583,7 @@ dependencies = [
 [[package]]
 name = "ppproperly"
 version = "0.1.0"
-source = "git+https://github.com/rsdsl/ppproperly.git#0753d2ee21d3ad66e40a4073bb2ad2361796618e"
+source = "git+https://github.com/rsdsl/ppproperly.git#0fe3a20eebf9f307f89bea0b350812e78d4851a6"
 dependencies = [
  "bitfield",
  "ppproperly_macros",

@@ -684,6 +684,8 @@ impl Client {
         };
 
         if let Some(pkt) = pkt {
+            println!("[ tx ] -> {}", pkt);
+
             let mut buf = Vec::new();
             pkt.serialize(&mut buf)?;
 
@@ -750,6 +752,8 @@ impl Client {
         });
 
         if let Some(file) = file {
+            println!("[ tx ] -> {}", pkt);
+
             let mut buf = Vec::new();
             pkt.serialize(&mut buf)?;
 
@@ -779,6 +783,8 @@ impl Client {
         });
 
         if let Some(file) = file {
+            println!("[ tx ] -> {}", pkt);
+
             let mut buf = Vec::new();
             pkt.serialize(&mut buf)?;
 
@@ -811,6 +817,8 @@ impl Client {
         });
 
         if let Some(file) = file {
+            println!("[ tx ] -> {}", pkt);
+
             let mut buf = Vec::new();
             pkt.serialize(&mut buf)?;
 
@@ -862,6 +870,8 @@ impl Client {
         });
 
         if let Some(file) = file {
+            println!("[ tx ] -> {}", pkt);
+
             let mut buf = Vec::new();
             pkt.serialize(&mut buf)?;
 
@@ -913,6 +923,8 @@ impl Client {
         });
 
         if let Some(file) = file {
+            println!("[ tx ] -> {}", pkt);
+
             let mut buf = Vec::new();
             pkt.serialize(&mut buf)?;
 
@@ -925,6 +937,8 @@ impl Client {
     /// Transforms a [`PppoePkt`] into a [`PppoePacket`] and feeds it
     /// into the PPPoE state machine.
     fn handle_pppoe(&mut self, pkt: PppoePkt) {
+        println!("[ rx ] <- {}", pkt);
+
         if pkt.session_id != self.session_id && self.session_id != 0 {
             return;
         }
@@ -986,6 +1000,8 @@ impl Client {
     /// Transforms a [`PppPkt`] into the correct sub-protocol packet type
     /// and feeds it into the right sub-PPP state machine.
     fn handle_ppp(&mut self, pkt: PppPkt) -> Result<()> {
+        println!("[ rx ] <- {}", pkt);
+
         match pkt.data {
             PppData::Lcp(lcp) => self.handle_lcp(lcp)?,
             PppData::Pap(pap) => self.handle_pap(pap),

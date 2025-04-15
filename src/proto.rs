@@ -647,12 +647,13 @@ impl<O: ProtocolOption> NegotiationProtocol<O> {
                 self.output_tx
                     .send(Packet {
                         ty: PacketType::ConfigureAck,
-                        options: packet.options,
+                        options: packet.options.clone(),
                         rejected_code: PacketType::Unknown(0),
                         rejected_protocol: 0,
                     })
                     .expect("output channel is closed");
 
+                self.peer = packet.options;
                 self.state = ProtocolState::Opened;
             }
             ProtocolState::AckSent => self

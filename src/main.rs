@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
     let mut config_file = File::open("/data/pppoe.conf")?;
     let config: Config = serde_json::from_reader(&mut config_file)?;
 
-    let mut ds_config: DsConfig = {
+    let mut ds_config_last: DsConfig = {
         let mut ds_config_file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
             DsConfig::default()
         })
     };
-    let mut ds_config_last = ds_config;
+    let mut ds_config = DsConfig::default();
 
     let (v4_tx, mut v4_rx) = mpsc::unbounded_channel();
     let (v6_tx, mut v6_rx) = mpsc::unbounded_channel();
@@ -49,8 +49,8 @@ async fn main() -> Result<()> {
         INTERFACE.into(),
         config.username,
         config.password,
-        ds_config.v4.map(|v4| v4.addr),
-        ds_config
+        ds_config_last.v4.map(|v4| v4.addr),
+        ds_config_last
             .v6
             .map(|v6| (u128::from(v6.laddr) & u128::from(u64::MAX)) as u64),
     )?;
